@@ -11,12 +11,30 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { SimplePool } from 'nostr-tools'
+
+if (!process.env.NEXT_PUBLIC_NOSTR_RELAY_URL) {
+  throw new Error('NEXT_PUBLIC_NOSTR_RELAY_URL environment variable is not set')
+}
+
+const RELAY_URL = process.env.NEXT_PUBLIC_NOSTR_RELAY_URL
+
+interface ProfileMetadata {
+  name?: string
+  displayName?: string
+  picture?: string
+}
 
 export default function Header() {
   const router = useRouter()
   const [npub, setNpub] = useState<string | null>(null)
+  const [profile, setProfile] = useState<ProfileMetadata>({})
+  const [pool, setPool] = useState<SimplePool | null>(null)
 
   useEffect(() => {
+    const newPool = new SimplePool()
+    setPool(newPool)
+
     const storedNsec = localStorage.getItem('nostr_nsec')
     if (storedNsec) {
       const { type, data } = nip19.decode(storedNsec)
@@ -24,9 +42,50 @@ export default function Header() {
         const publicKey = getPublicKey(data)
         const npubEncoded = nip19.npubEncode(publicKey)
         setNpub(npubEncoded)
+        fetchProfile(newPool, publicKey)
       }
     }
+
+    return () => {
+      newPool.close([RELAY_URL])
+    }
   }, [])
+
+  const fetchProfile = async (poolInstance: SimplePool, pubkey: string) => {
+    try {
+      const events = await poolInstance.querySync([RELAY_URL], {
+        kinds: [0],
+        authors: [pubkey],
+        limit: 1
+      })
+      if (events.length > 0) {
+        try {
+          const metadata = JSON.parse(events[0].content)
+          setProfile(metadata)
+        } catch (e) {
+          console.error('Failed to parse profile metadata:', e)
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch profile:', error)
+    }
+  }
+
+  const getInitials = () => {
+    if (profile.name) {
+      return profile.name.slice(0, 2).toUpperCase()
+    }
+    if (profile.displayName) {
+      return profile.displayName.slice(0, 2).toUpperCase()
+    }
+    if (npub) {
+      const { type, data } = nip19.decode(npub)
+      if (type === 'npub') {
+        return data.slice(0, 2).toUpperCase()
+      }
+    }
+    return '👤'
+  }
 
   return (
     <header className="w-full bg-[hsl(var(--secondary))] border-b border-[hsl(var(--border))] relative z-[49]">
@@ -44,7 +103,7 @@ export default function Header() {
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button className="w-8 h-8 rounded-full bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] flex items-center justify-center hover:brightness-90 transition-all cursor-pointer">
-                    {npub.slice(0, 2)}
+                    {getInitials()}
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent 
