@@ -40,16 +40,21 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
+    // Initialize relay pool
     const newPool = new SimplePool()
     setPool(newPool)
 
-    const storedNsec = localStorage.getItem('nostr_nsec')
-    if (storedNsec) {
+    // Check for either login method
+    const hasNpub = localStorage.getItem('nostr_npub')
+    const hasNsec = localStorage.getItem('nostr_nsec')
+    if (hasNpub || hasNsec) {
       setHasProfile(true)
     }
 
+    // Fetch all posts regardless of login status
     fetchPosts(newPool)
 
+    // Cleanup
     return () => {
       newPool.close([RELAY_URL])
     }
@@ -141,7 +146,7 @@ export default function Home() {
                 onClick={() => router.push('/login')}
                 className="bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:brightness-90 transition-all"
               >
-                Create Nostr Profile
+                Get Started
               </Button>
             </div>
           ) : null}
