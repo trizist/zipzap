@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { getPublicKey } from 'nostr-tools'
 import * as nip19 from 'nostr-tools/nip19'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,21 +29,27 @@ export default function Header() {
   }, [])
 
   return (
-    <header className="w-full bg-[hsl(var(--secondary))] border-b border-[hsl(var(--border))]">
+    <header className="w-full bg-[hsl(var(--secondary))] border-b border-[hsl(var(--border))] relative z-10">
       <div className="w-full flex-1 px-4 sm:px-6 lg:px-8">
         <div className="max-w-[800px] mx-auto w-full">
           <div className="flex items-center justify-between h-16">
-            <h1 className="text-2xl font-bold">ZipZap</h1>
+            <Link 
+              href="/"
+              className="text-2xl font-bold hover:opacity-80 transition-opacity cursor-pointer"
+              replace={true}
+            >
+              ZipZap
+            </Link>
             {npub && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button className="w-8 h-8 rounded-full bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] flex items-center justify-center hover:brightness-90 transition-all">
+                  <button className="w-8 h-8 rounded-full bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] flex items-center justify-center hover:brightness-90 transition-all cursor-pointer">
                     {npub.slice(0, 2)}
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => router.push('/profile')}>
-                    Edit Profile
+                <DropdownMenuContent align="end" className="z-50">
+                  <DropdownMenuItem asChild>
+                    <Link href="/profile" className="w-full cursor-pointer">Edit Profile</Link>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>

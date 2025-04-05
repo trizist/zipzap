@@ -85,7 +85,7 @@ export default function Home() {
               <p className="text-lg text-muted-foreground mb-8">Create your Nostr profile to get started</p>
               <Button 
                 onClick={() => router.push('/profile')}
-                className="bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:brightness-90 transition-all"
+                className="bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:brightness-90 transition-all cursor-pointer"
               >
                 Create Nostr Profile
               </Button>
