@@ -7,6 +7,7 @@ import * as nip19 from 'nostr-tools/nip19'
 import { useState, useEffect } from 'react'
 import { Textarea } from "../../components/ui/textarea"
 import { Input } from "../../components/ui/input"
+import Header from './Header'
 import type { UnsignedEvent, Event, Filter } from 'nostr-tools'
 
 if (!process.env.NEXT_PUBLIC_NOSTR_RELAY_URL) {
@@ -21,6 +22,7 @@ interface ProfileMetadata {
   website?: string
   about?: string
   lno?: string // BOLT 12 offer
+  picture?: string
 }
 
 interface ZipZapStats {
@@ -317,132 +319,141 @@ export default function NostrProfile() {
   }
 
   return (
-    <div className="flex flex-col items-center gap-6 text-center">
-      <h1 className="text-4xl font-bold tracking-tight sm:text-6xl text-[hsl(var(--foreground))]">
-        ZipZap
-      </h1>
-      <p className="text-lg text-[hsl(var(--muted-foreground))] sm:text-xl">
-        Enter the world of BOLT 12 zaps
-      </p>
-      {!npub ? (
-        <Button 
-          size="lg" 
-          className="mt-6 bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:brightness-90 transition-all font-medium"
-          onClick={handleCreateProfile}
-        >
-          Create Nostr Profile
-        </Button>
-      ) : (
-        <div className="flex flex-col items-center gap-4 w-full max-w-md">
-          <p className="text-sm text-[hsl(var(--muted-foreground))]">Your Nostr public key:</p>
-          <code className="px-4 py-2 bg-[hsl(var(--secondary))] rounded-lg text-sm font-mono break-all">
-            {npub}
-          </code>
-
-          {/* Profile Form */}
-          <div className="w-full space-y-4 mt-4 bg-[hsl(var(--secondary))] p-4 rounded-lg">
-            <h3 className="text-lg font-semibold text-left">Profile Settings</h3>
-            <div className="space-y-3">
-              <Input
-                placeholder="Username"
-                value={profile.name || ''}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setProfile(prev => ({ ...prev, name: e.target.value }))}
-                className="bg-[hsl(var(--background))]"
-              />
-              <Input
-                placeholder="Display Name"
-                value={profile.displayName || ''}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setProfile(prev => ({ ...prev, displayName: e.target.value }))}
-                className="bg-[hsl(var(--background))]"
-              />
-              <Input
-                placeholder="Website"
-                value={profile.website || ''}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setProfile(prev => ({ ...prev, website: e.target.value }))}
-                className="bg-[hsl(var(--background))]"
-              />
-              <Textarea
-                placeholder="About Me"
-                value={profile.about || ''}
-                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setProfile(prev => ({ ...prev, about: e.target.value }))}
-                className="bg-[hsl(var(--background))]"
-              />
-              <Input
-                placeholder="BOLT 12 Offer"
-                value={profile.lno || ''}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setProfile(prev => ({ ...prev, lno: e.target.value }))}
-                className="bg-[hsl(var(--background))]"
-              />
-              <Button 
-                onClick={handleUpdateProfile}
-                disabled={isUpdatingProfile}
-                className="w-full bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:brightness-90 transition-all"
-              >
-                {isUpdatingProfile ? 'Updating Profile...' : 'Update Profile'}
-              </Button>
-            </div>
-          </div>
-
-          {/* Post Creation Form */}
-          <div className="w-full space-y-4 mt-4">
-            <Textarea
-              placeholder="What's on your mind?"
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              className="w-full min-h-[100px] bg-[hsl(var(--secondary))]"
-            />
-            <Button 
-              onClick={handlePublish}
-              disabled={isPublishing || !message.trim()}
-              className="w-full bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:brightness-90 transition-all"
-            >
-              {isPublishing ? 'Publishing...' : 'Publish Post'}
-            </Button>
-          </div>
-
-          {/* Posts List */}
-          <div className="w-full mt-8 space-y-4">
-            <h2 className="text-xl font-semibold text-[hsl(var(--foreground))]">Your Posts</h2>
-            {isLoading ? (
-              <p className="text-[hsl(var(--muted-foreground))]">Loading posts...</p>
-            ) : posts.length === 0 ? (
-              <p className="text-[hsl(var(--muted-foreground))]">No posts yet. Write your first post!</p>
+    <div className="w-full -h-screen flex flex-col bg-background">
+      <Header 
+        npub={npub}
+        picture={profile.picture}
+        displayName={profile.displayName}
+        onCreateProfile={handleCreateProfile}
+      />
+      
+      <div className="w-full flex-1 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-[800px] mx-auto w-full">
+          <div className="py-6 space-y-6">
+            {!npub ? (
+              <div className="py-12 text-center">
+                <h1 className="text-4xl font-bold tracking-tight sm:text-6xl text-[hsl(var(--foreground))]">
+                  ZipZap
+                </h1>
+                <p className="mt-4 text-lg text-[hsl(var(--muted-foreground))] sm:text-xl">
+                  Enter the world of BOLT 12 zaps
+                </p>
+              </div>
             ) : (
-              <div className="space-y-4">
-                {posts.map(post => (
-                  <div 
-                    key={post.id} 
-                    className="p-4 rounded-lg bg-[hsl(var(--secondary))] text-left"
-                  >
-                    <p className="text-[hsl(var(--foreground))]">{post.content}</p>
-                    <div className="mt-2 flex flex-col gap-2">
-                      <div className="flex items-center justify-between">
-                        <p className="text-xs text-[hsl(var(--muted-foreground))]">
-                          {formatDate(post.created_at)}
-                        </p>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleZipZap(post)}
-                          disabled={isZipZapping === post.id}
-                          className="text-xs"
-                        >
-                          {isZipZapping === post.id ? 'Zapping...' : '⚡️ ZipZap'}
-                        </Button>
-                      </div>
-                      {post.zipZapStats && post.zipZapStats.count > 0 && (
-                        <p className="text-xs text-[hsl(var(--muted-foreground))]">
-                          {formatZipZapStats(post.zipZapStats)}
-                        </p>
-                      )}
-                    </div>
+              <div className="space-y-6 w-full">
+                {/* Profile Form */}
+                <div className="w-full bg-[hsl(var(--secondary))] p-4 rounded-lg">
+                  <h3 className="text-lg font-semibold mb-4">Profile Settings</h3>
+                  <div className="space-y-3">
+                    <Input
+                      placeholder="Username"
+                      value={profile.name || ''}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setProfile(prev => ({ ...prev, name: e.target.value }))}
+                      className="bg-[hsl(var(--background))]"
+                    />
+                    <Input
+                      placeholder="Display Name"
+                      value={profile.displayName || ''}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setProfile(prev => ({ ...prev, displayName: e.target.value }))}
+                      className="bg-[hsl(var(--background))]"
+                    />
+                    <Input
+                      placeholder="Website"
+                      value={profile.website || ''}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setProfile(prev => ({ ...prev, website: e.target.value }))}
+                      className="bg-[hsl(var(--background))]"
+                    />
+                    <Input
+                      placeholder="Profile Picture URL"
+                      value={profile.picture || ''}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setProfile(prev => ({ ...prev, picture: e.target.value }))}
+                      className="bg-[hsl(var(--background))]"
+                    />
+                    <Textarea
+                      placeholder="About Me"
+                      value={profile.about || ''}
+                      onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setProfile(prev => ({ ...prev, about: e.target.value }))}
+                      className="bg-[hsl(var(--background))]"
+                    />
+                    <Input
+                      placeholder="BOLT 12 Offer"
+                      value={profile.lno || ''}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setProfile(prev => ({ ...prev, lno: e.target.value }))}
+                      className="bg-[hsl(var(--background))]"
+                    />
+                    <Button 
+                      onClick={handleUpdateProfile}
+                      disabled={isUpdatingProfile}
+                      className="w-full bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:brightness-90 transition-all"
+                    >
+                      {isUpdatingProfile ? 'Updating Profile...' : 'Update Profile'}
+                    </Button>
                   </div>
-                ))}
+                </div>
+
+                {/* Post Creation Form */}
+                <div className="w-full space-y-4">
+                  <Textarea
+                    placeholder="What's on your mind?"
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    className="w-full min-h-[100px] bg-[hsl(var(--secondary))]"
+                  />
+                  <Button 
+                    onClick={handlePublish}
+                    disabled={isPublishing || !message.trim()}
+                    className="w-full bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:brightness-90 transition-all"
+                  >
+                    {isPublishing ? 'Publishing...' : 'Publish Post'}
+                  </Button>
+                </div>
+
+                {/* Posts List */}
+                <div className="w-full space-y-4">
+                  <h2 className="text-xl font-semibold text-[hsl(var(--foreground))]">Your Posts</h2>
+                  {isLoading ? (
+                    <p className="text-[hsl(var(--muted-foreground))]">Loading posts...</p>
+                  ) : posts.length === 0 ? (
+                    <p className="text-[hsl(var(--muted-foreground))]">No posts yet. Write your first post!</p>
+                  ) : (
+                    <div className="space-y-4">
+                      {posts.map(post => (
+                        <div 
+                          key={post.id} 
+                          className="p-4 rounded-lg bg-[hsl(var(--secondary))] text-left"
+                        >
+                          <p className="text-[hsl(var(--foreground))]">{post.content}</p>
+                          <div className="mt-2 flex flex-col gap-2">
+                            <div className="flex items-center justify-between">
+                              <p className="text-xs text-[hsl(var(--muted-foreground))]">
+                                {formatDate(post.created_at)}
+                              </p>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleZipZap(post)}
+                                disabled={isZipZapping === post.id}
+                                className="text-xs"
+                              >
+                                {isZipZapping === post.id ? 'Zapping...' : '⚡️ ZipZap'}
+                              </Button>
+                            </div>
+                            {post.zipZapStats && post.zipZapStats.count > 0 && (
+                              <p className="text-xs text-[hsl(var(--muted-foreground))]">
+                                {formatZipZapStats(post.zipZapStats)}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
         </div>
-      )}
+      </div>
     </div>
   )
 } 
