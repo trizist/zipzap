@@ -7,6 +7,11 @@
   resolved "https://registry.yarnpkg.com/@alloc/quick-lru/-/quick-lru-5.2.0.tgz#7bf68b20c0a350f936915fcae06f58e32007ce30"
   integrity sha512-UrcABB+4bUrFABwbluTIBErXwvbsU/V7TZWfmbgJfbkwiBuziS9gxdODUyuiecfdGQ85jglMW6juS3+z5TsKLw==
 
+"@bitcoin-design/bitcoin-icons-react@^0.1.10":
+  version "0.1.10"
+  resolved "https://registry.yarnpkg.com/@bitcoin-design/bitcoin-icons-react/-/bitcoin-icons-react-0.1.10.tgz#11acf1d386c1094d3eff673ca236345860762f64"
+  integrity sha512-f7GSutKHa4EK4LWI/phnGCJsN8fzFbVAVQ4F1MYxiza34LVmXmbgHUmdP/BR8ZeQSIbZLt19inpJZDBtQvYe4Q==
+
 "@emnapi/core@^1.4.0":
   version "1.4.0"
   resolved "https://registry.yarnpkg.com/@emnapi/core/-/core-1.4.0.tgz#8844b02d799198158ac1fea21ae2bc81b881da9a"
