@@ -10,9 +10,9 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+} from "@/app/components/ui/dropdown-menu"
 import { SimplePool } from 'nostr-tools'
-import { Button } from "@/components/ui/button"
+import { Button } from "@/app/components/ui/button"
 
 if (!process.env.NEXT_PUBLIC_NOSTR_RELAY_URL) {
   throw new Error('NEXT_PUBLIC_NOSTR_RELAY_URL environment variable is not set')

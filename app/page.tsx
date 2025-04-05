@@ -1,16 +1,18 @@
 'use client'
 
-import { Button } from "@/components/ui/button"
+import { Button } from "@/app/components/ui/button"
 import { SimplePool } from 'nostr-tools'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Header from './components/Header'
 import * as nip19 from 'nostr-tools/nip19'
 import { getPublicKey, getEventHash, verifyEvent } from 'nostr-tools'
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Textarea } from "@/components/ui/textarea"
+import { Avatar, AvatarFallback, AvatarImage } from "@/app/components/ui/avatar"
+import { Textarea } from "@/app/components/ui/textarea"
 import { finalizeEvent } from 'nostr-tools/pure'
 import type { UnsignedEvent } from 'nostr-tools'
+import { LightningIcon } from '@bitcoin-design/bitcoin-icons-react/filled'
+import ZipZapModal from './components/ZipZapModal'
 
 // Define a type for any Nostr event
 type NostrEventBase = {
@@ -42,6 +44,7 @@ interface ProfileMetadata {
   name?: string
   displayName?: string
   picture?: string
+  lno?: string
 }
 
 interface NostrEvent {
@@ -63,6 +66,8 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(true)
   const [message, setMessage] = useState('')
   const [isPublishing, setIsPublishing] = useState(false)
+  const [isZapping, setIsZapping] = useState<string | null>(null)
+  const [zipZapEvent, setZipZapEvent] = useState<string | null>(null)
 
   useEffect(() => {
     // Initialize relay pool
@@ -299,6 +304,96 @@ export default function Home() {
     }
   }
 
+  const handleZap = async (post: NostrEvent) => {
+    if (!post.author?.lno || !pool || isZapping) return
+    
+    setIsZapping(post.id)
+    try {
+      // Create the ZipZap event (kind 9912)
+      const baseEvent = {
+        kind: 9912,
+        created_at: Math.floor(Date.now() / 1000),
+        content: 'ZipZap!',
+        tags: [
+          ['relays', RELAY_URL],
+          ['lno', post.author.lno],
+          ['p', post.pubkey],
+          ['e', post.id]
+        ]
+      }
+
+      // Calculate the event hash
+      const id = getEventHash(baseEvent)
+
+      // Get the signature
+      const storedPubkey = localStorage.getItem('nostr_pubkey')
+      if (storedPubkey) {
+        if (!window.nostr) {
+          throw new Error('Nostr extension not found')
+        }
+
+        // Get the signature from Alby
+        // @ts-ignore - Ignore type checking for now
+        const sig = await window.nostr.signEvent({
+          ...baseEvent,
+          id
+        })
+
+        // Handle different signature formats
+        let finalSig = sig
+        if (typeof sig === 'object' && sig !== null) {
+          if ('sig' in sig) {
+            finalSig = sig.sig
+          } else {
+            throw new Error('Unexpected signature format')
+          }
+        }
+
+        if (!finalSig || typeof finalSig !== 'string') {
+          throw new Error('Invalid signature format')
+        }
+
+        // Construct the complete signed event
+        const completeEvent = {
+          ...baseEvent,
+          id,
+          sig: finalSig,
+          pubkey: storedPubkey
+        }
+
+        // Verify and show the event
+        if (!verifyEvent(completeEvent)) {
+          throw new Error('Event verification failed')
+        }
+
+        setZipZapEvent(JSON.stringify(completeEvent, null, 2))
+      } else {
+        // Handle local nsec signing
+        const storedNsec = localStorage.getItem('nostr_nsec')
+        if (!storedNsec) {
+          throw new Error('No signing method available')
+        }
+        const { type, data: secretKey } = nip19.decode(storedNsec)
+        if (type !== 'nsec') throw new Error('Invalid secret key')
+        
+        const pubkey = getPublicKey(secretKey)
+        baseEvent.pubkey = pubkey
+        const signedEvent = finalizeEvent(baseEvent, secretKey)
+
+        if (!verifyEvent(signedEvent)) {
+          throw new Error('Event verification failed')
+        }
+
+        setZipZapEvent(JSON.stringify(signedEvent, null, 2))
+      }
+    } catch (error) {
+      console.error('Failed to create ZipZap:', error)
+      alert('Failed to create ZipZap. Please try again.')
+    } finally {
+      setIsZapping(null)
+    }
+  }
+
   return (
     <div className="w-full min-h-screen bg-background">
       <Header />
@@ -341,22 +436,41 @@ export default function Home() {
             ) : (
               <div className="space-y-4">
                 {posts.map(post => (
-                  <div key={post.id} className="bg-[hsl(var(--secondary))] p-4 rounded-lg">
-                    <div className="flex items-center gap-3 mb-3">
-                      <Avatar className="h-8 w-8">
+                  <div 
+                    key={post.id} 
+                    className="p-4 rounded-lg bg-gray-100 dark:bg-gray-800"
+                  >
+                    <div className="flex items-start gap-3">
+                      <Avatar className="w-10 h-10">
                         {post.author?.picture ? (
-                          <AvatarImage src={post.author.picture} alt={getAuthorDisplayName(post.author, post.pubkey)} />
+                          <AvatarImage src={post.author.picture} />
                         ) : null}
-                        <AvatarFallback className="bg-gray-300 border-2 border-[hsl(var(--border))] flex items-center justify-center">{getAuthorInitials(post.author)}</AvatarFallback>
+                        <AvatarFallback>{getAuthorInitials(post.author)}</AvatarFallback>
                       </Avatar>
-                      <div>
-                        <p className="font-medium text-sm">{getAuthorDisplayName(post.author, post.pubkey)}</p>
-                        <p className="text-xs text-muted-foreground">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm">
+                          {getAuthorDisplayName(post.author, post.pubkey)}
+                        </p>
+                        <p className="text-xs text-muted-foreground mb-2">
                           {formatDate(post.created_at)}
                         </p>
+                        <p className="text-sm whitespace-pre-wrap break-words">
+                          {post.content}
+                        </p>
                       </div>
+                      {post.author?.lno && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleZap(post)}
+                          disabled={isZapping === post.id}
+                          className="shrink-0 text-yellow-500 hover:text-yellow-600 hover:bg-yellow-100 dark:hover:bg-yellow-900/20"
+                        >
+                          <LightningIcon className="w-5 h-5" />
+                          <span className="sr-only">ZipZap this post</span>
+                        </Button>
+                      )}
                     </div>
-                    <p className="mb-2">{post.content}</p>
                   </div>
                 ))}
               </div>
@@ -364,6 +478,11 @@ export default function Home() {
           </div>
         </div>
       </div>
+      <ZipZapModal
+        isOpen={!!zipZapEvent}
+        onClose={() => setZipZapEvent(null)}
+        eventJson={zipZapEvent || ''}
+      />
     </div>
   )
 }

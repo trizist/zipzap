@@ -1,12 +1,12 @@
 'use client'
 
-import { Button } from "@/components/ui/button"
+import { Button } from "@/app/components/ui/button"
 import { generateSecretKey, getPublicKey, SimplePool } from 'nostr-tools'
 import { finalizeEvent } from 'nostr-tools/pure'
 import * as nip19 from 'nostr-tools/nip19'
 import { useState, useEffect } from 'react'
-import { Textarea } from "../../components/ui/textarea"
-import { Input } from "../../components/ui/input"
+import { Textarea } from "@/app/components/ui/textarea"
+import { Input } from "@/app/components/ui/input"
 import Header from './Header'
 import type { UnsignedEvent, Event, Filter } from 'nostr-tools'
 

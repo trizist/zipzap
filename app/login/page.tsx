@@ -1,6 +1,6 @@
 'use client'
 
-import { Button } from "@/components/ui/button"
+import { Button } from "@/app/components/ui/button"
 import { useRouter } from 'next/navigation'
 import { generateSecretKey, getPublicKey } from 'nostr-tools'
 import * as nip19 from 'nostr-tools/nip19'
