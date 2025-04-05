@@ -36,6 +36,18 @@ export default function Header() {
     const newPool = new SimplePool()
     setPool(newPool)
 
+    // Check for extension login first
+    const storedNpub = localStorage.getItem('nostr_npub')
+    if (storedNpub) {
+      setNpub(storedNpub)
+      const { type, data } = nip19.decode(storedNpub)
+      if (type === 'npub') {
+        fetchProfile(newPool, data)
+      }
+      return
+    }
+
+    // Fall back to local nsec login
     const storedNsec = localStorage.getItem('nostr_nsec')
     if (storedNsec) {
       const { type, data } = nip19.decode(storedNsec)
@@ -90,19 +102,21 @@ export default function Header() {
 
   const handleLogout = () => {
     localStorage.removeItem('nostr_nsec')
+    localStorage.removeItem('nostr_pubkey')
+    localStorage.removeItem('nostr_npub')
     setNpub(null)
     setProfile({})
     router.push('/')
   }
 
   return (
-    <header className="w-full bg-[hsl(var(--secondary))] border-b border-[hsl(var(--border))] relative z-[49]">
+    <header className="w-full bg-gray-900 border-b border-gray-800 relative z-[49]">
       <div className="w-full flex-1 px-4 sm:px-6 lg:px-8">
         <div className="max-w-[800px] mx-auto w-full">
           <div className="flex items-center justify-between h-16">
             <Link 
               href="/"
-              className="text-2xl font-bold hover:opacity-80 transition-opacity cursor-pointer"
+              className="text-2xl font-bold text-white hover:opacity-80 transition-opacity cursor-pointer"
               replace={true}
             >
               ZipZap
@@ -110,21 +124,21 @@ export default function Header() {
             {npub ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button className="w-8 h-8 rounded-full bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] flex items-center justify-center hover:brightness-90 transition-all cursor-pointer">
+                  <button className="w-8 h-8 rounded-full bg-gray-800 text-white flex items-center justify-center hover:bg-gray-700 transition-all cursor-pointer">
                     {getInitials()}
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent 
                   align="end" 
-                  className="z-[100] bg-[hsl(var(--background))] border border-[hsl(var(--border))] mt-2"
+                  className="z-[100] bg-gray-900 border border-gray-800 mt-2"
                   sideOffset={5}
                 >
-                  <DropdownMenuItem asChild className="cursor-pointer focus:bg-[hsl(var(--accent))] focus:text-[hsl(var(--accent-foreground))]">
-                    <Link href="/profile" className="w-full">Edit Profile</Link>
+                  <DropdownMenuItem asChild className="cursor-pointer focus:bg-gray-800 focus:text-white">
+                    <Link href="/profile" className="w-full text-white">Edit Profile</Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem 
                     onClick={handleLogout}
-                    className="cursor-pointer focus:bg-[hsl(var(--accent))] focus:text-[hsl(var(--accent-foreground))]"
+                    className="cursor-pointer focus:bg-gray-800 focus:text-white text-white"
                   >
                     Log Out
                   </DropdownMenuItem>
@@ -133,7 +147,7 @@ export default function Header() {
             ) : (
               <Button 
                 onClick={() => router.push('/login')}
-                className="bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:brightness-90 transition-all"
+                className="bg-white text-gray-900 hover:bg-gray-100 transition-all"
               >
                 Log In
               </Button>

@@ -5,9 +5,44 @@ import { useRouter } from 'next/navigation'
 import { generateSecretKey, getPublicKey } from 'nostr-tools'
 import * as nip19 from 'nostr-tools/nip19'
 import Header from '../components/Header'
+import { useState } from 'react'
+
+declare global {
+  interface Window {
+    nostr?: {
+      getPublicKey(): Promise<string>
+      signEvent(event: any): Promise<string>
+    }
+  }
+}
 
 export default function LoginPage() {
   const router = useRouter()
+  const [isExtensionLoading, setIsExtensionLoading] = useState(false)
+
+  const handleExtensionLogin = async () => {
+    setIsExtensionLoading(true)
+    try {
+      if (!window.nostr) {
+        alert('No Nostr extension found. Please install a Nostr browser extension.')
+        return
+      }
+
+      const publicKey = await window.nostr.getPublicKey()
+      if (publicKey) {
+        // Store the pubkey in localStorage
+        const npub = nip19.npubEncode(publicKey)
+        localStorage.setItem('nostr_pubkey', publicKey)
+        localStorage.setItem('nostr_npub', npub)
+        router.push('/')
+      }
+    } catch (error) {
+      console.error('Failed to get public key:', error)
+      alert('Failed to connect to Nostr extension. Please try again.')
+    } finally {
+      setIsExtensionLoading(false)
+    }
+  }
 
   const handleCreateProfile = () => {
     const sk = generateSecretKey()
@@ -26,14 +61,15 @@ export default function LoginPage() {
             <p className="text-lg text-muted-foreground mb-8">Choose how you'd like to get started</p>
             <div className="space-y-4 w-full max-w-[300px]">
               <Button 
-                onClick={() => {}}
-                className="w-full bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:brightness-90 transition-all"
+                onClick={handleExtensionLogin}
+                disabled={isExtensionLoading}
+                className="w-full bg-gray-900 text-white hover:bg-gray-800 transition-all"
               >
-                Login with Browser Extension
+                {isExtensionLoading ? 'Connecting...' : 'Login with Browser Extension'}
               </Button>
               <Button 
                 onClick={handleCreateProfile}
-                className="w-full bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:brightness-90 transition-all"
+                className="w-full bg-gray-900 text-white hover:bg-gray-800 transition-all"
               >
                 Create New Nostr Profile
               </Button>
