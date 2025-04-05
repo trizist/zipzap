@@ -134,6 +134,9 @@ export default function Header() {
                   sideOffset={5}
                 >
                   <DropdownMenuItem asChild className="cursor-pointer focus:bg-gray-800 focus:text-white">
+                    <Link href="/wallet" className="w-full text-white">Wallet</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild className="cursor-pointer focus:bg-gray-800 focus:text-white">
                     <Link href="/profile" className="w-full text-white">Edit Profile</Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem 
