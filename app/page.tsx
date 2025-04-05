@@ -67,7 +67,7 @@ export default function Home() {
   const [message, setMessage] = useState('')
   const [isPublishing, setIsPublishing] = useState(false)
   const [isZapping, setIsZapping] = useState<string | null>(null)
-  const [zipZapEvent, setZipZapEvent] = useState<string | null>(null)
+  const [zipZapNote, setZipZapNote] = useState<string | null>(null)
 
   useEffect(() => {
     // Initialize relay pool
@@ -376,12 +376,33 @@ export default function Home() {
           sig: finalSig
         }
 
-        // Verify and show the event
+        // Verify event
         if (!verifyEvent(completeEvent)) {
           throw new Error('Event verification failed')
         }
-
-        setZipZapEvent(JSON.stringify(completeEvent, null, 2))
+        
+        // Publish the event to the relay
+        console.log('Publishing ZipZap event to relay:', RELAY_URL);
+        const pub = pool.publish([RELAY_URL], completeEvent);
+        
+        try {
+          await Promise.race([
+            pub,
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Publish timeout')), 5000))
+          ]);
+          console.log('Successfully published ZipZap event');
+          
+          // Encode the event ID as a note and show it
+          const noteEncoded = nip19.noteEncode(completeEvent.id);
+          setZipZapNote(noteEncoded);
+        } catch (pubError) {
+          console.error('Failed to publish ZipZap event:', pubError);
+          alert('Event created but publishing to relay failed. You can still use the event ID.');
+          
+          // Still encode the event ID even if publishing failed
+          const noteEncoded = nip19.noteEncode(completeEvent.id);
+          setZipZapNote(noteEncoded);
+        }
       } else {
         // Handle local nsec signing
         const { type, data: secretKey } = nip19.decode(storedNsec!)
@@ -392,8 +413,29 @@ export default function Home() {
         if (!verifyEvent(signedEvent)) {
           throw new Error('Event verification failed')
         }
-
-        setZipZapEvent(JSON.stringify(signedEvent, null, 2))
+        
+        // Publish the event to the relay
+        console.log('Publishing ZipZap event to relay:', RELAY_URL);
+        const pub = pool.publish([RELAY_URL], signedEvent);
+        
+        try {
+          await Promise.race([
+            pub,
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Publish timeout')), 5000))
+          ]);
+          console.log('Successfully published ZipZap event');
+          
+          // Encode the event ID as a note and show it
+          const noteEncoded = nip19.noteEncode(signedEvent.id);
+          setZipZapNote(noteEncoded);
+        } catch (pubError) {
+          console.error('Failed to publish ZipZap event:', pubError);
+          alert('Event created but publishing to relay failed. You can still use the event ID.');
+          
+          // Still encode the event ID even if publishing failed
+          const noteEncoded = nip19.noteEncode(signedEvent.id);
+          setZipZapNote(noteEncoded);
+        }
       }
     } catch (error) {
       console.error('Failed to create ZipZap:', error)
@@ -488,9 +530,9 @@ export default function Home() {
         </div>
       </div>
       <ZipZapModal
-        isOpen={!!zipZapEvent}
-        onClose={() => setZipZapEvent(null)}
-        eventJson={zipZapEvent || ''}
+        isOpen={!!zipZapNote}
+        onClose={() => setZipZapNote(null)}
+        noteId={zipZapNote || ''}
       />
     </div>
   )
