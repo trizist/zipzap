@@ -29,7 +29,7 @@ export default function Header() {
   }, [])
 
   return (
-    <header className="w-full bg-[hsl(var(--secondary))] border-b border-[hsl(var(--border))] relative z-10">
+    <header className="w-full bg-[hsl(var(--secondary))] border-b border-[hsl(var(--border))] relative z-[49]">
       <div className="w-full flex-1 px-4 sm:px-6 lg:px-8">
         <div className="max-w-[800px] mx-auto w-full">
           <div className="flex items-center justify-between h-16">
@@ -47,9 +47,13 @@ export default function Header() {
                     {npub.slice(0, 2)}
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="z-50">
-                  <DropdownMenuItem asChild>
-                    <Link href="/profile" className="w-full cursor-pointer">Edit Profile</Link>
+                <DropdownMenuContent 
+                  align="end" 
+                  className="z-[100] bg-[hsl(var(--background))] border border-[hsl(var(--border))] mt-2"
+                  sideOffset={5}
+                >
+                  <DropdownMenuItem asChild className="cursor-pointer focus:bg-[hsl(var(--accent))] focus:text-[hsl(var(--accent-foreground))]">
+                    <Link href="/profile" className="w-full">Edit Profile</Link>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
