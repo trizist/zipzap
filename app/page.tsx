@@ -309,11 +309,29 @@ export default function Home() {
     
     setIsZapping(post.id)
     try {
+      // Get the public key first
+      const storedPubkey = localStorage.getItem('nostr_pubkey')
+      const storedNsec = localStorage.getItem('nostr_nsec')
+      
+      if (!storedPubkey && !storedNsec) {
+        throw new Error('No signing method available')
+      }
+
+      let pubkey: string
+      if (storedPubkey) {
+        pubkey = storedPubkey
+      } else {
+        const { type, data: secretKey } = nip19.decode(storedNsec!)
+        if (type !== 'nsec') throw new Error('Invalid secret key')
+        pubkey = getPublicKey(secretKey)
+      }
+
       // Create the ZipZap event (kind 9912)
       const baseEvent = {
         kind: 9912,
         created_at: Math.floor(Date.now() / 1000),
         content: 'ZipZap!',
+        pubkey,
         tags: [
           ['relays', RELAY_URL],
           ['lno', post.author.lno],
@@ -325,8 +343,6 @@ export default function Home() {
       // Calculate the event hash
       const id = getEventHash(baseEvent)
 
-      // Get the signature
-      const storedPubkey = localStorage.getItem('nostr_pubkey')
       if (storedPubkey) {
         if (!window.nostr) {
           throw new Error('Nostr extension not found')
@@ -357,8 +373,7 @@ export default function Home() {
         const completeEvent = {
           ...baseEvent,
           id,
-          sig: finalSig,
-          pubkey: storedPubkey
+          sig: finalSig
         }
 
         // Verify and show the event
@@ -369,15 +384,9 @@ export default function Home() {
         setZipZapEvent(JSON.stringify(completeEvent, null, 2))
       } else {
         // Handle local nsec signing
-        const storedNsec = localStorage.getItem('nostr_nsec')
-        if (!storedNsec) {
-          throw new Error('No signing method available')
-        }
-        const { type, data: secretKey } = nip19.decode(storedNsec)
+        const { type, data: secretKey } = nip19.decode(storedNsec!)
         if (type !== 'nsec') throw new Error('Invalid secret key')
         
-        const pubkey = getPublicKey(secretKey)
-        baseEvent.pubkey = pubkey
         const signedEvent = finalizeEvent(baseEvent, secretKey)
 
         if (!verifyEvent(signedEvent)) {

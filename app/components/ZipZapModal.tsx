@@ -34,9 +34,11 @@ export default function ZipZapModal({ isOpen, onClose, eventJson }: ZipZapModalP
           </DialogDescription>
         </DialogHeader>
         <div className="relative mt-4">
-          <pre className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg overflow-x-auto text-sm">
-            {eventJson}
-          </pre>
+          <div className="max-h-[400px] overflow-auto rounded-lg bg-gray-100 dark:bg-gray-800">
+            <pre className="p-4 text-sm whitespace-pre-wrap break-all">
+              {eventJson}
+            </pre>
+          </div>
           <Button
             variant="secondary"
             size="sm"
