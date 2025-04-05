@@ -66,7 +66,6 @@ Draft of a ZipZap request note
   "content": "ZipZap!",
   "tags": [
     ["relays", "wss://mynostrrelay.xyz"],
-    ["amount", "1212"],
     ["lno", "{lno_from_profile_of_post_author}"],
     ["p", "{pubkey_of_author_of_the_post}"],
     ["e", "{id_of_the_post}"]
@@ -76,4 +75,25 @@ Draft of a ZipZap request note
   "id": "{event_id}",
   "sig": "{event_signature}"
 }
+```
+
+### ZipZap Receipt
+
+Draft of a ZipZap Receipt note
+
+```
+{
+    "id": "{event_id}",
+    "pubkey": "{my_pubkey_as_recipient}",
+    "created_at": {invoice_paid_at},
+    "kind": 9913,
+    "tags": [
+      ["p", "{my_pubkey_as_recipient}"],
+      ["P", "{pubkey_of_zipzapsender (creator of the 9912 event)}"],
+      ["e", "{id_of_my_post_that_was_zipzapped}"],
+      ["lno", "{lno_from_profile_of_post_author}"],
+    ],
+    "content": "",
+    "sig": "{event_signature}"
+  }
 ```
