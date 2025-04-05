@@ -23,16 +23,26 @@ interface ProfileMetadata {
   lno?: string // BOLT 12 offer
 }
 
+interface ZipZapStats {
+  count: number
+  totalAmount: number
+}
+
+interface PostWithZipZaps extends Event {
+  zipZapStats?: ZipZapStats
+}
+
 export default function NostrProfile() {
   const [nsec, setNsec] = useState<string | null>(null)
   const [npub, setNpub] = useState<string | null>(null)
   const [message, setMessage] = useState('')
   const [isPublishing, setIsPublishing] = useState(false)
   const [pool, setPool] = useState<SimplePool | null>(null)
-  const [posts, setPosts] = useState<Event[]>([])
+  const [posts, setPosts] = useState<PostWithZipZaps[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [profile, setProfile] = useState<ProfileMetadata>({})
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false)
+  const [isZipZapping, setIsZipZapping] = useState<string | null>(null)
 
   useEffect(() => {
     // Initialize relay pool
@@ -110,6 +120,29 @@ export default function NostrProfile() {
     }
   }
 
+  const fetchZipZapsForPost = async (poolInstance: SimplePool, postId: string): Promise<ZipZapStats> => {
+    try {
+      const filter: Filter = {
+        kinds: [9912],
+        '#e': [postId]
+      }
+      const events = await poolInstance.querySync([RELAY_URL], filter)
+      
+      const totalAmount = events.reduce((sum, event) => {
+        const amountTag = event.tags.find(tag => tag[0] === 'amount')
+        return sum + (amountTag ? parseInt(amountTag[1], 10) : 0)
+      }, 0)
+
+      return {
+        count: events.length,
+        totalAmount
+      }
+    } catch (error) {
+      console.error('Failed to fetch zipzaps for post:', error)
+      return { count: 0, totalAmount: 0 }
+    }
+  }
+
   const fetchPosts = async (poolInstance: SimplePool, pubkey: string) => {
     setIsLoading(true)
     try {
@@ -119,7 +152,17 @@ export default function NostrProfile() {
         limit: 10
       }
       const events = await poolInstance.querySync([RELAY_URL], filter)
-      setPosts(events.sort((a: Event, b: Event) => b.created_at - a.created_at))
+      const sortedEvents = events.sort((a: Event, b: Event) => b.created_at - a.created_at)
+      
+      // Fetch zipzap stats for each post
+      const postsWithStats = await Promise.all(
+        sortedEvents.map(async (post) => {
+          const stats = await fetchZipZapsForPost(poolInstance, post.id)
+          return { ...post, zipZapStats: stats }
+        })
+      )
+      
+      setPosts(postsWithStats)
     } catch (error) {
       console.error('Failed to fetch posts:', error)
     } finally {
@@ -179,6 +222,98 @@ export default function NostrProfile() {
 
   const formatDate = (timestamp: number) => {
     return new Date(timestamp * 1000).toLocaleString()
+  }
+
+  const fetchAuthorProfile = async (pubkey: string): Promise<ProfileMetadata | null> => {
+    if (!pool) return null
+    
+    try {
+      const filter: Filter = {
+        kinds: [0],
+        authors: [pubkey],
+        limit: 1
+      }
+      const events = await pool.querySync([RELAY_URL], filter)
+      if (events.length > 0) {
+        const profileEvent = events[0]
+        try {
+          return JSON.parse(profileEvent.content)
+        } catch (e) {
+          console.error('Failed to parse author profile metadata:', e)
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch author profile:', error)
+    }
+    return null
+  }
+
+  const handleZipZap = async (post: PostWithZipZaps) => {
+    if (!nsec || !pool) return
+    
+    setIsZipZapping(post.id)
+    try {
+      // Fetch the author's profile to get their LNO
+      const authorProfile = await fetchAuthorProfile(post.pubkey)
+      if (!authorProfile?.lno) {
+        console.error('Author does not have a BOLT 12 offer configured')
+        return
+      }
+
+      const { type, data: secretKey } = nip19.decode(nsec)
+      if (type !== 'nsec') throw new Error('Invalid secret key')
+
+      // Create the ZipZap event
+      const eventTemplate: UnsignedEvent = {
+        kind: 9912,
+        created_at: Math.floor(Date.now() / 1000),
+        tags: [
+          ['relays', RELAY_URL],
+          ['amount', '1212'],
+          ['lno', authorProfile.lno],
+          ['p', post.pubkey],
+          ['e', post.id]
+        ],
+        content: 'ZipZap!',
+        pubkey: getPublicKey(secretKey),
+      }
+
+      // Sign and publish the event
+      const signedEvent = finalizeEvent(eventTemplate, secretKey)
+      const pub = pool.publish([RELAY_URL], signedEvent)
+      
+      // Wait for publication with timeout
+      await Promise.race([
+        pub,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
+      ])
+
+      // After successful zipzap, update the post's stats
+      const newStats = await fetchZipZapsForPost(pool, post.id)
+      setPosts(prevPosts => 
+        prevPosts.map(p => 
+          p.id === post.id 
+            ? { ...p, zipZapStats: newStats }
+            : p
+        )
+      )
+
+      console.log('ZipZap event broadcast successfully!', {
+        eventId: signedEvent.id,
+        authorPubkey: post.pubkey,
+        postId: post.id
+      })
+    } catch (error) {
+      console.error('Failed to send ZipZap:', error)
+    } finally {
+      setIsZipZapping(null)
+    }
+  }
+
+  const formatZipZapStats = (stats?: ZipZapStats) => {
+    if (!stats || stats.count === 0) return null
+    const requestText = stats.count === 1 ? 'request' : 'requests'
+    return `${stats.count} zipzap ${requestText} (${stats.totalAmount} sats)`
   }
 
   return (
@@ -280,9 +415,27 @@ export default function NostrProfile() {
                     className="p-4 rounded-lg bg-[hsl(var(--secondary))] text-left"
                   >
                     <p className="text-[hsl(var(--foreground))]">{post.content}</p>
-                    <p className="mt-2 text-xs text-[hsl(var(--muted-foreground))]">
-                      {formatDate(post.created_at)}
-                    </p>
+                    <div className="mt-2 flex flex-col gap-2">
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs text-[hsl(var(--muted-foreground))]">
+                          {formatDate(post.created_at)}
+                        </p>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleZipZap(post)}
+                          disabled={isZipZapping === post.id}
+                          className="text-xs"
+                        >
+                          {isZipZapping === post.id ? 'Zapping...' : '⚡️ ZipZap'}
+                        </Button>
+                      </div>
+                      {post.zipZapStats && post.zipZapStats.count > 0 && (
+                        <p className="text-xs text-[hsl(var(--muted-foreground))]">
+                          {formatZipZapStats(post.zipZapStats)}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
