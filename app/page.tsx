@@ -84,8 +84,8 @@ export default function Home() {
               <h2 className="text-4xl font-bold mb-4">Enter the world of BOLT 12 zaps</h2>
               <p className="text-lg text-muted-foreground mb-8">Create your Nostr profile to get started</p>
               <Button 
-                onClick={() => router.push('/profile')}
-                className="bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:brightness-90 transition-all cursor-pointer"
+                onClick={() => router.push('/login')}
+                className="bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:brightness-90 transition-all"
               >
                 Create Nostr Profile
               </Button>

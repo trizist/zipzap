@@ -168,14 +168,14 @@ export default function ProfilePage() {
                   <Button 
                     onClick={() => router.push('/')}
                     variant="outline"
-                    className="flex-1 cursor-pointer"
+                    className="flex-1"
                   >
                     Back to Home
                   </Button>
                   <Button 
                     onClick={handleUpdateProfile}
                     disabled={isUpdating}
-                    className="flex-1 bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:brightness-90 transition-all cursor-pointer"
+                    className="flex-1 bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:brightness-90 transition-all"
                   >
                     {isUpdating ? 'Updating Profile...' : 'Update Profile'}
                   </Button>

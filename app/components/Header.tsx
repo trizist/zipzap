@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { SimplePool } from 'nostr-tools'
+import { Button } from "@/components/ui/button"
 
 if (!process.env.NEXT_PUBLIC_NOSTR_RELAY_URL) {
   throw new Error('NEXT_PUBLIC_NOSTR_RELAY_URL environment variable is not set')
@@ -87,6 +88,13 @@ export default function Header() {
     return '👤'
   }
 
+  const handleLogout = () => {
+    localStorage.removeItem('nostr_nsec')
+    setNpub(null)
+    setProfile({})
+    router.push('/')
+  }
+
   return (
     <header className="w-full bg-[hsl(var(--secondary))] border-b border-[hsl(var(--border))] relative z-[49]">
       <div className="w-full flex-1 px-4 sm:px-6 lg:px-8">
@@ -99,7 +107,7 @@ export default function Header() {
             >
               ZipZap
             </Link>
-            {npub && (
+            {npub ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button className="w-8 h-8 rounded-full bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] flex items-center justify-center hover:brightness-90 transition-all cursor-pointer">
@@ -114,8 +122,21 @@ export default function Header() {
                   <DropdownMenuItem asChild className="cursor-pointer focus:bg-[hsl(var(--accent))] focus:text-[hsl(var(--accent-foreground))]">
                     <Link href="/profile" className="w-full">Edit Profile</Link>
                   </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    onClick={handleLogout}
+                    className="cursor-pointer focus:bg-[hsl(var(--accent))] focus:text-[hsl(var(--accent-foreground))]"
+                  >
+                    Log Out
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
+            ) : (
+              <Button 
+                onClick={() => router.push('/login')}
+                className="bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:brightness-90 transition-all"
+              >
+                Log In
+              </Button>
             )}
           </div>
         </div>
