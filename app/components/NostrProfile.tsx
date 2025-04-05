@@ -6,6 +6,7 @@ import { finalizeEvent } from 'nostr-tools/pure'
 import * as nip19 from 'nostr-tools/nip19'
 import { useState, useEffect } from 'react'
 import { Textarea } from "../../components/ui/textarea"
+import { Input } from "../../components/ui/input"
 import type { UnsignedEvent, Event, Filter } from 'nostr-tools'
 
 if (!process.env.NEXT_PUBLIC_NOSTR_RELAY_URL) {
@@ -13,6 +14,14 @@ if (!process.env.NEXT_PUBLIC_NOSTR_RELAY_URL) {
 }
 
 const RELAY_URL = process.env.NEXT_PUBLIC_NOSTR_RELAY_URL
+
+interface ProfileMetadata {
+  name?: string
+  displayName?: string
+  website?: string
+  about?: string
+  lno?: string // BOLT 12 offer
+}
 
 export default function NostrProfile() {
   const [nsec, setNsec] = useState<string | null>(null)
@@ -22,6 +31,8 @@ export default function NostrProfile() {
   const [pool, setPool] = useState<SimplePool | null>(null)
   const [posts, setPosts] = useState<Event[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [profile, setProfile] = useState<ProfileMetadata>({})
+  const [isUpdatingProfile, setIsUpdatingProfile] = useState(false)
 
   useEffect(() => {
     // Initialize relay pool
@@ -38,8 +49,9 @@ export default function NostrProfile() {
         const npubKey = nip19.npubEncode(publicKey)
         setNpub(npubKey)
         
-        // Fetch posts when we have the public key
+        // Fetch posts and profile when we have the public key
         fetchPosts(newPool, publicKey)
+        fetchProfile(newPool, publicKey)
       }
     }
 
@@ -48,6 +60,55 @@ export default function NostrProfile() {
       newPool.close([RELAY_URL])
     }
   }, [])
+
+  const fetchProfile = async (poolInstance: SimplePool, pubkey: string) => {
+    try {
+      const filter: Filter = {
+        kinds: [0],
+        authors: [pubkey],
+        limit: 1
+      }
+      const events = await poolInstance.querySync([RELAY_URL], filter)
+      if (events.length > 0) {
+        const profileEvent = events[0]
+        try {
+          const metadata = JSON.parse(profileEvent.content)
+          setProfile(metadata)
+        } catch (e) {
+          console.error('Failed to parse profile metadata:', e)
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch profile:', error)
+    }
+  }
+
+  const handleUpdateProfile = async () => {
+    if (!nsec || !pool) return
+
+    setIsUpdatingProfile(true)
+    try {
+      const { type, data: secretKey } = nip19.decode(nsec)
+      if (type !== 'nsec') throw new Error('Invalid secret key')
+
+      // Create the metadata event
+      const eventTemplate: UnsignedEvent = {
+        kind: 0,
+        created_at: Math.floor(Date.now() / 1000),
+        tags: [],
+        content: JSON.stringify(profile),
+        pubkey: getPublicKey(secretKey),
+      }
+
+      // Sign and publish the event
+      const signedEvent = finalizeEvent(eventTemplate, secretKey)
+      await pool.publish([RELAY_URL], signedEvent)
+    } catch (error) {
+      console.error('Failed to update profile:', error)
+    } finally {
+      setIsUpdatingProfile(false)
+    }
+  }
 
   const fetchPosts = async (poolInstance: SimplePool, pubkey: string) => {
     setIsLoading(true)
@@ -142,11 +203,57 @@ export default function NostrProfile() {
           <code className="px-4 py-2 bg-[hsl(var(--secondary))] rounded-lg text-sm font-mono break-all">
             {npub}
           </code>
+
+          {/* Profile Form */}
+          <div className="w-full space-y-4 mt-4 bg-[hsl(var(--secondary))] p-4 rounded-lg">
+            <h3 className="text-lg font-semibold text-left">Profile Settings</h3>
+            <div className="space-y-3">
+              <Input
+                placeholder="Username"
+                value={profile.name || ''}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setProfile(prev => ({ ...prev, name: e.target.value }))}
+                className="bg-[hsl(var(--background))]"
+              />
+              <Input
+                placeholder="Display Name"
+                value={profile.displayName || ''}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setProfile(prev => ({ ...prev, displayName: e.target.value }))}
+                className="bg-[hsl(var(--background))]"
+              />
+              <Input
+                placeholder="Website"
+                value={profile.website || ''}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setProfile(prev => ({ ...prev, website: e.target.value }))}
+                className="bg-[hsl(var(--background))]"
+              />
+              <Textarea
+                placeholder="About Me"
+                value={profile.about || ''}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setProfile(prev => ({ ...prev, about: e.target.value }))}
+                className="bg-[hsl(var(--background))]"
+              />
+              <Input
+                placeholder="BOLT 12 Offer"
+                value={profile.lno || ''}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setProfile(prev => ({ ...prev, lno: e.target.value }))}
+                className="bg-[hsl(var(--background))]"
+              />
+              <Button 
+                onClick={handleUpdateProfile}
+                disabled={isUpdatingProfile}
+                className="w-full bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:brightness-90 transition-all"
+              >
+                {isUpdatingProfile ? 'Updating Profile...' : 'Update Profile'}
+              </Button>
+            </div>
+          </div>
+
+          {/* Post Creation Form */}
           <div className="w-full space-y-4 mt-4">
             <Textarea
               placeholder="What's on your mind?"
               value={message}
-              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setMessage(e.target.value)}
+              onChange={(e) => setMessage(e.target.value)}
               className="w-full min-h-[100px] bg-[hsl(var(--secondary))]"
             />
             <Button 
@@ -158,6 +265,7 @@ export default function NostrProfile() {
             </Button>
           </div>
 
+          {/* Posts List */}
           <div className="w-full mt-8 space-y-4">
             <h2 className="text-xl font-semibold text-[hsl(var(--foreground))]">Your Posts</h2>
             {isLoading ? (
