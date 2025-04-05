@@ -6,11 +6,31 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Header from './components/Header'
 import * as nip19 from 'nostr-tools/nip19'
-import { getPublicKey, getEventHash } from 'nostr-tools'
+import { getPublicKey, getEventHash, verifyEvent } from 'nostr-tools'
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Textarea } from "@/components/ui/textarea"
 import { finalizeEvent } from 'nostr-tools/pure'
 import type { UnsignedEvent } from 'nostr-tools'
+
+// Define a type for any Nostr event
+type NostrEventBase = {
+  kind: number
+  created_at: number
+  content: string
+  tags: string[][]
+  pubkey: string
+  id?: string
+  sig?: string
+}
+
+declare global {
+  interface Window {
+    nostr?: {
+      getPublicKey(): Promise<string>
+      signEvent(event: NostrEventBase): Promise<string>
+    }
+  }
+}
 
 if (!process.env.NEXT_PUBLIC_NOSTR_RELAY_URL) {
   throw new Error('NEXT_PUBLIC_NOSTR_RELAY_URL environment variable is not set')
@@ -143,27 +163,96 @@ export default function Home() {
 
     setIsPublishing(true)
     try {
-      // Create the event template
-      const eventTemplate: UnsignedEvent = {
-        kind: 1,
-        created_at: Math.floor(Date.now() / 1000),
-        tags: [],
-        content: message,
-        pubkey: '',
-      }
-
-      let signedEvent;
-      
       // Check for NIP-07 extension first
       const storedPubkey = localStorage.getItem('nostr_pubkey')
       if (storedPubkey) {
         if (!window.nostr) {
           throw new Error('Nostr extension not found')
         }
-        eventTemplate.pubkey = storedPubkey
-        const sig = await window.nostr.signEvent(eventTemplate)
-        const id = getEventHash(eventTemplate)
-        signedEvent = { ...eventTemplate, sig, id }
+        
+        try {
+          // Create the base event
+          const baseEvent = {
+            kind: 1,
+            pubkey: storedPubkey,
+            created_at: Math.floor(Date.now() / 1000),
+            content: message,
+            tags: []
+          }
+
+          console.log('Base event:', baseEvent)
+
+          // Calculate the event hash
+          const id = getEventHash(baseEvent)
+          console.log('Event ID:', id)
+
+          // Create the event to sign
+          const eventToSign = {
+            ...baseEvent,
+            id
+          }
+          console.log('Event to sign:', eventToSign)
+
+          try {
+            // Get the signature from Alby
+            // @ts-ignore - Ignore type checking for now
+            const sig = await window.nostr.signEvent(eventToSign)
+            console.log('Raw signature from Alby:', sig)
+            console.log('Signature type:', typeof sig)
+
+            // Handle different signature formats
+            let finalSig = sig
+            if (typeof sig === 'object' && sig !== null) {
+              console.log('Signature is an object:', sig)
+              // If sig is an object, it might contain the signature in a property
+              if ('sig' in sig) {
+                finalSig = sig.sig
+              } else {
+                throw new Error('Unexpected signature format')
+              }
+            }
+
+            if (!finalSig || typeof finalSig !== 'string') {
+              throw new Error('Invalid signature format')
+            }
+
+            // Construct the complete signed event
+            const completeEvent = {
+              ...baseEvent,
+              id,
+              sig: finalSig
+            }
+            console.log('Complete event:', completeEvent)
+
+            // Verify the event is valid before publishing
+            const isValid = verifyEvent(completeEvent)
+            console.log('Event verification result:', isValid)
+
+            if (!isValid) {
+              throw new Error('Event verification failed')
+            }
+
+            // Publish to relay
+            const pub = pool.publish([RELAY_URL], completeEvent)
+            await Promise.race([
+              pub,
+              new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
+            ])
+
+            // Add the new post to the list with author profile
+            const authorProfile = await fetchAuthorProfile(pool, completeEvent.pubkey)
+            setPosts(prev => [{ ...completeEvent, author: authorProfile }, ...prev])
+
+            // Clear the message on success
+            setMessage('')
+          } catch (error) {
+            console.error('Signature error:', error)
+            throw new Error('Failed to get valid signature from extension')
+          }
+        } catch (error) {
+          console.error('Failed to sign/verify event:', error)
+          throw error
+        }
       } else {
         // Fall back to local nsec
         const storedNsec = localStorage.getItem('nostr_nsec')
@@ -173,23 +262,35 @@ export default function Home() {
         const { type, data: secretKey } = nip19.decode(storedNsec)
         if (type !== 'nsec') throw new Error('Invalid secret key')
         
-        eventTemplate.pubkey = getPublicKey(secretKey)
-        signedEvent = finalizeEvent(eventTemplate, secretKey)
+        const baseEvent = {
+          kind: 1,
+          created_at: Math.floor(Date.now() / 1000),
+          tags: [],
+          content: message,
+          pubkey: getPublicKey(secretKey)
+        }
+        
+        const signedEvent = finalizeEvent(baseEvent, secretKey)
+
+        // Verify the event is valid before publishing
+        if (!verifyEvent(signedEvent)) {
+          throw new Error('Event verification failed')
+        }
+
+        // Publish to relay
+        const pub = pool.publish([RELAY_URL], signedEvent)
+        await Promise.race([
+          pub,
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
+        ])
+
+        // Add the new post to the list with author profile
+        const authorProfile = await fetchAuthorProfile(pool, signedEvent.pubkey)
+        setPosts(prev => [{ ...signedEvent, author: authorProfile }, ...prev])
+
+        // Clear the message on success
+        setMessage('')
       }
-
-      // Publish to relay
-      const pub = pool.publish([RELAY_URL], signedEvent)
-      await Promise.race([
-        pub,
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
-      ])
-
-      // Add the new post to the list with author profile
-      const authorProfile = await fetchAuthorProfile(pool, signedEvent.pubkey)
-      setPosts(prev => [{ ...signedEvent, author: authorProfile }, ...prev])
-
-      // Clear the message on success
-      setMessage('')
     } catch (error) {
       console.error('Failed to publish:', error)
       alert('Failed to publish post. Please try again.')
