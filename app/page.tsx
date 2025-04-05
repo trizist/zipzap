@@ -43,11 +43,11 @@ export default function Home() {
       const { type, data } = nip19.decode(storedNsec)
       if (type === 'nsec') {
         const publicKey = getPublicKey(data)
-        fetchPosts(newPool, publicKey)
       }
-    } else {
-      setIsLoading(false)
     }
+
+    // Fetch all posts regardless of login status
+    fetchPosts(newPool)
 
     // Cleanup
     return () => {
@@ -55,12 +55,11 @@ export default function Home() {
     }
   }, [])
 
-  const fetchPosts = async (poolInstance: SimplePool, pubkey: string) => {
+  const fetchPosts = async (poolInstance: SimplePool) => {
     try {
       const events = await poolInstance.querySync([RELAY_URL], {
         kinds: [1],
-        authors: [pubkey],
-        limit: 10
+        limit: 50
       })
       setPosts(events.sort((a, b) => b.created_at - a.created_at))
     } catch (error) {
@@ -90,27 +89,26 @@ export default function Home() {
                 Create Nostr Profile
               </Button>
             </div>
-          ) : (
-            <div className="py-6">
-              <h2 className="text-2xl font-bold mb-6">Your Posts</h2>
-              {isLoading ? (
-                <div className="text-center text-muted-foreground">Loading posts...</div>
-              ) : posts.length === 0 ? (
-                <div className="text-center text-muted-foreground">No posts yet</div>
-              ) : (
-                <div className="space-y-4">
-                  {posts.map(post => (
-                    <div key={post.id} className="bg-[hsl(var(--secondary))] p-4 rounded-lg">
-                      <p className="mb-2">{post.content}</p>
-                      <p className="text-sm text-muted-foreground">
-                        Posted on {formatDate(post.created_at)}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
+          ) : null}
+          <div className="py-6">
+            <h2 className="text-2xl font-bold mb-6">Recent Posts</h2>
+            {isLoading ? (
+              <div className="text-center text-muted-foreground">Loading posts...</div>
+            ) : posts.length === 0 ? (
+              <div className="text-center text-muted-foreground">No posts yet</div>
+            ) : (
+              <div className="space-y-4">
+                {posts.map(post => (
+                  <div key={post.id} className="bg-[hsl(var(--secondary))] p-4 rounded-lg">
+                    <p className="mb-2">{post.content}</p>
+                    <p className="text-sm text-muted-foreground">
+                      Posted on {formatDate(post.created_at)}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
