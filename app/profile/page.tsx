@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { generateSecretKey, getPublicKey, SimplePool, getEventHash } from 'nostr-tools'
+import { generateSecretKey, getPublicKey, SimplePool, getEventHash, verifyEvent } from 'nostr-tools'
 import { finalizeEvent } from 'nostr-tools/pure'
 import * as nip19 from 'nostr-tools/nip19'
 import { useState, useEffect } from 'react'
@@ -24,6 +24,26 @@ interface ProfileMetadata {
   about?: string
   lno?: string // BOLT 12 offer
   picture?: string
+}
+
+// Define a type for any Nostr event
+type NostrEventBase = {
+  kind: number
+  created_at: number
+  content: string
+  tags: string[][]
+  pubkey: string
+  id?: string
+  sig?: string
+}
+
+declare global {
+  interface Window {
+    nostr?: {
+      getPublicKey(): Promise<string>
+      signEvent(event: NostrEventBase): Promise<string>
+    }
+  }
 }
 
 export default function ProfilePage() {
@@ -91,24 +111,81 @@ export default function ProfilePage() {
     setIsUpdating(true)
     setUpdateSuccess(false)
     try {
-      let signedEvent;
-
       // Check for NIP-07 extension first
       const storedPubkey = localStorage.getItem('nostr_pubkey')
       if (storedPubkey) {
         if (!window.nostr) {
           throw new Error('Nostr extension not found')
         }
-        const eventTemplate: UnsignedEvent = {
-          kind: 0,
-          created_at: Math.floor(Date.now() / 1000),
-          tags: [],
-          content: JSON.stringify(profile),
-          pubkey: storedPubkey,
+
+        try {
+          // Create the base event
+          const baseEvent = {
+            kind: 0,
+            pubkey: storedPubkey,
+            created_at: Math.floor(Date.now() / 1000),
+            content: JSON.stringify(profile),
+            tags: []
+          }
+
+          // Calculate the event hash
+          const id = getEventHash(baseEvent)
+
+          // Create the event to sign
+          const eventToSign = {
+            ...baseEvent,
+            id
+          }
+
+          try {
+            // Get the signature from Alby
+            // @ts-ignore - Ignore type checking for now
+            const sig = await window.nostr.signEvent(eventToSign)
+            console.log('Raw signature from Alby:', sig)
+            console.log('Signature type:', typeof sig)
+
+            // Handle different signature formats
+            let finalSig = sig
+            if (typeof sig === 'object' && sig !== null) {
+              console.log('Signature is an object:', sig)
+              // If sig is an object, it might contain the signature in a property
+              if ('sig' in sig) {
+                finalSig = sig.sig
+              } else {
+                throw new Error('Unexpected signature format')
+              }
+            }
+
+            if (!finalSig || typeof finalSig !== 'string') {
+              throw new Error('Invalid signature format')
+            }
+
+            // Construct the complete signed event
+            const completeEvent = {
+              ...baseEvent,
+              id,
+              sig: finalSig
+            }
+
+            // Verify the event is valid before publishing
+            const isValid = verifyEvent(completeEvent)
+            console.log('Event verification result:', isValid)
+
+            if (!isValid) {
+              throw new Error('Event verification failed')
+            }
+
+            // Publish to relay
+            await pool.publish([RELAY_URL], completeEvent)
+            setUpdateSuccess(true)
+          } catch (error) {
+            console.error('Signature error:', error)
+            throw new Error('Failed to get valid signature from extension')
+          }
+        } catch (error) {
+          console.error('Failed to sign/verify event:', error)
+          throw error
         }
-        const sig = await window.nostr.signEvent(eventTemplate)
-        const id = getEventHash(eventTemplate)
-        signedEvent = { ...eventTemplate, sig, id }
       } else {
         // Fall back to local nsec
         const storedNsec = localStorage.getItem('nostr_nsec')
@@ -116,24 +193,31 @@ export default function ProfilePage() {
           router.push('/')
           return
         }
+
         const { type, data: secretKey } = nip19.decode(storedNsec)
         if (type !== 'nsec') throw new Error('Invalid secret key')
 
-        const eventTemplate: UnsignedEvent = {
+        // Create the base event
+        const baseEvent = {
           kind: 0,
           created_at: Math.floor(Date.now() / 1000),
           tags: [],
           content: JSON.stringify(profile),
-          pubkey: getPublicKey(secretKey),
+          pubkey: getPublicKey(secretKey)
         }
-        signedEvent = finalizeEvent(eventTemplate, secretKey)
-      }
 
-      // Publish to relay
-      await pool.publish([RELAY_URL], signedEvent)
-      
-      // Show success message
-      setUpdateSuccess(true)
+        // Sign and finalize the event
+        const signedEvent = finalizeEvent(baseEvent, secretKey)
+
+        // Verify the event is valid before publishing
+        if (!verifyEvent(signedEvent)) {
+          throw new Error('Event verification failed')
+        }
+
+        // Publish to relay
+        await pool.publish([RELAY_URL], signedEvent)
+        setUpdateSuccess(true)
+      }
     } catch (error) {
       console.error('Failed to update profile:', error)
       alert('Failed to update profile. Please try again.')
