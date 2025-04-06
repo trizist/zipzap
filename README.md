@@ -18,6 +18,52 @@ To use the wallet features, you will need to run [phoenixd](https://phoenix.acin
 
 ## ZipZap Protocol
 
+### ZipZap Request
+
+Draft of a ZipZap request note
+
+```
+{
+  "kind": 9912,
+  "content": "ZipZap!",
+  "tags": [
+    ["relays", "wss://mynostrrelay.xyz"],
+    ["lno", "{lno_from_profile_of_post_author}"],
+    ["p", "{pubkey_of_author_of_the_post}"],
+    ["e", "{id_of_the_post}"]
+  ],
+  "pubkey": "{my_pubkey}",
+  "created_at": {current_unix_timestamp},
+  "id": "{event_id}",
+  "sig": "{event_signature}"
+}
+```
+
+### ZipZap Receipt
+
+Draft of a ZipZap Receipt note
+
+```
+{
+    "id": "{event_id}",
+    "pubkey": "{my_pubkey_as_recipient}",
+    "created_at": {invoice_paid_at},
+    "kind": 9913,
+    "tags": [
+      ["p", "{my_pubkey_as_recipient}"],
+      ["P", "{pubkey_of_zipzapsender (creator of the 9912 event)}"],
+      ["e", "{id_of_my_post_that_was_zipzapped}"],
+      ["lno", "{lno_from_profile_of_post_author}"],
+      ["amount", {amount_of_payment}]
+    ],
+    "content": "",
+    "sig": "{event_signature}"
+  }
+```
+
+### Sequence Diagram
+
+```mermaid
 sequenceDiagram
     participant Alice_Nostr as Alice's Nostr Client
     participant Alice_Lightning as Alice's Lightning Wallet
@@ -51,6 +97,7 @@ sequenceDiagram
     Alice_Nostr->>Relays: Sign & broadcast kind 9913 ZipZap Receipt
     
     Note over Relays: Compatible clients will render ZipZap receipt in UI
+```
 
 ## Spec Notes (WIP)
 
@@ -95,46 +142,3 @@ I've been thinking through a lot of different ways to implement this, starting w
 - Same flow as above, but instead of using `payer_note`, we use an extra TLV field. We use an odd feature bit to signal optional. Lightning nodes that do't understand it can still receive the payment, but lightning nodes that do understand it will recognize the zipzap request and broadcast a zipzap receipt upon completed payment.
 - PROS: same as above, though perhaps we could save on space using binary encoding inside of the TLV field which I do not think we could do with `payer_note` (might be wrong on that one)
 - CONS: same as above
-
-### ZipZap Request
-
-Draft of a ZipZap request note
-
-```
-{
-  "kind": 9912,
-  "content": "ZipZap!",
-  "tags": [
-    ["relays", "wss://mynostrrelay.xyz"],
-    ["lno", "{lno_from_profile_of_post_author}"],
-    ["p", "{pubkey_of_author_of_the_post}"],
-    ["e", "{id_of_the_post}"]
-  ],
-  "pubkey": "{my_pubkey}",
-  "created_at": {current_unix_timestamp},
-  "id": "{event_id}",
-  "sig": "{event_signature}"
-}
-```
-
-### ZipZap Receipt
-
-Draft of a ZipZap Receipt note
-
-```
-{
-    "id": "{event_id}",
-    "pubkey": "{my_pubkey_as_recipient}",
-    "created_at": {invoice_paid_at},
-    "kind": 9913,
-    "tags": [
-      ["p", "{my_pubkey_as_recipient}"],
-      ["P", "{pubkey_of_zipzapsender (creator of the 9912 event)}"],
-      ["e", "{id_of_my_post_that_was_zipzapped}"],
-      ["lno", "{lno_from_profile_of_post_author}"],
-      ["amount", {amount_of_payment}]
-    ],
-    "content": "",
-    "sig": "{event_signature}"
-  }
-```
