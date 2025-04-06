@@ -2,7 +2,7 @@
 
 import { Button } from "@/app/components/ui/button"
 import { SimplePool } from 'nostr-tools'
-import { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Header from './components/Header'
 import * as nip19 from 'nostr-tools/nip19'
@@ -56,6 +56,7 @@ interface NostrEvent {
   content: string
   sig: string
   author?: ProfileMetadata | null
+  zipZapCount?: number
 }
 
 export default function Home() {
@@ -83,12 +84,41 @@ export default function Home() {
 
     // Fetch all posts regardless of login status
     fetchPosts(newPool)
+    
+    // Set up an interval to periodically refresh ZipZap counts
+    const refreshInterval = setInterval(() => {
+      if (posts.length > 0) {
+        console.log('Refreshing ZipZap counts...');
+        fetchPosts(newPool);
+      }
+    }, 60000); // Every minute
 
     // Cleanup
     return () => {
+      clearInterval(refreshInterval);
       newPool.close([RELAY_URL])
     }
   }, [])
+  
+  // Also refresh posts when a ZipZap is created
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const refreshPosts = React.useCallback((poolInstance) => {
+    if (poolInstance) {
+      fetchPosts(poolInstance);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (zipZapNote && pool) {
+      // Wait a bit to allow the event to propagate to the relay
+      const timer = setTimeout(() => {
+        console.log('Refreshing posts after ZipZap creation...');
+        refreshPosts(pool);
+      }, 3000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [zipZapNote, pool, refreshPosts])
 
   const fetchAuthorProfile = async (poolInstance: SimplePool, pubkey: string): Promise<ProfileMetadata | null> => {
     try {
@@ -110,6 +140,46 @@ export default function Home() {
     return null
   }
 
+  // Fetch ZipZap receipts (kind 9913) for a given post ID
+  const fetchZipZapReceipts = async (poolInstance: SimplePool, postId: string): Promise<number> => {
+    try {
+      // Query for kind 9913 events that have an 'e' tag matching the post ID
+      const zipZapReceipts = await poolInstance.querySync([RELAY_URL], {
+        kinds: [9913],
+        '#e': [postId],
+        limit: 100 // Reasonable limit
+      });
+      
+      // Count all valid 9913 receipts (unique by event ID)
+      const uniqueEventIds = new Set();
+      
+      console.log(`Found ${zipZapReceipts.length} total ZipZap receipts for post ${postId}`);
+      
+      // Log info about each receipt for debugging
+      zipZapReceipts.forEach((receipt, index) => {
+        const isValid = receipt.kind === 9913 && verifyEvent(receipt);
+        console.log(`Receipt ${index + 1}:`, {
+          id: receipt.id?.substring(0, 8) + '...',
+          pubkey: receipt.pubkey?.substring(0, 8) + '...',
+          kind: receipt.kind,
+          isValid,
+          created_at: new Date(receipt.created_at * 1000).toISOString()
+        });
+        
+        // Add to unique IDs set if valid
+        if (isValid && receipt.id) {
+          uniqueEventIds.add(receipt.id);
+        }
+      });
+      
+      console.log(`Found ${uniqueEventIds.size} unique valid ZipZap receipts for post ${postId}`);
+      return uniqueEventIds.size;
+    } catch (error) {
+      console.error(`Failed to fetch ZipZap receipts for post ${postId}:`, error);
+      return 0;
+    }
+  };
+
   const fetchPosts = async (poolInstance: SimplePool) => {
     try {
       const events = await poolInstance.querySync([RELAY_URL], {
@@ -124,7 +194,14 @@ export default function Home() {
       const postsWithAuthors = await Promise.all(
         sortedEvents.map(async (post) => {
           const authorProfile = await fetchAuthorProfile(poolInstance, post.pubkey)
-          return { ...post, author: authorProfile }
+          
+          // Only fetch ZipZap counts for posts from authors with lno tag
+          let zipZapCount = 0;
+          if (authorProfile?.lno) {
+            zipZapCount = await fetchZipZapReceipts(poolInstance, post.id);
+          }
+          
+          return { ...post, author: authorProfile, zipZapCount };
         })
       )
       
@@ -509,18 +586,27 @@ export default function Home() {
                           {post.content}
                         </p>
                       </div>
-                      {post.author?.lno && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleZap(post)}
-                          disabled={isZapping === post.id}
-                          className="shrink-0 text-yellow-500 hover:text-yellow-600 hover:bg-yellow-100 dark:hover:bg-yellow-900/20"
-                        >
-                          <LightningIcon className="w-5 h-5" />
-                          <span className="sr-only">ZipZap this post</span>
-                        </Button>
-                      )}
+                      <div className="flex flex-col items-end gap-1 shrink-0">
+                        {post.zipZapCount > 0 && (
+                          <div className="flex items-center gap-1 text-xs text-yellow-600 dark:text-yellow-400 font-medium">
+                            <LightningIcon className="w-3 h-3" />
+                            <span>{post.zipZapCount} ZipZap{post.zipZapCount !== 1 ? 's' : ''}!</span>
+                          </div>
+                        )}
+                        
+                        {post.author?.lno && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleZap(post)}
+                            disabled={isZapping === post.id}
+                            className="shrink-0 text-yellow-500 hover:text-yellow-600 hover:bg-yellow-100 dark:hover:bg-yellow-900/20"
+                          >
+                            <LightningIcon className="w-5 h-5" />
+                            <span className="sr-only">ZipZap this post</span>
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ))}

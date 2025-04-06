@@ -1,8 +1,23 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { SimplePool } from 'nostr-tools'
+import { getPublicKey, getEventHash, verifyEvent } from 'nostr-tools'
+import * as nip19 from 'nostr-tools/nip19'
+import { finalizeEvent } from 'nostr-tools/pure'
 import Header from '../components/Header'
 import { Button } from '../components/ui/button'
+
+// Define a Nostr event type
+interface NostrEvent {
+  id: string
+  pubkey: string
+  created_at: number
+  kind: number
+  tags: string[][]
+  content: string
+  sig: string
+}
 
 interface IncomingPayment {
   paymentHash: string
@@ -14,12 +29,30 @@ interface IncomingPayment {
   payerNote?: string
   paymentRequest: string
   expiresAt: number
+  processedZipZap?: boolean  // Tracks if we've already processed a ZipZap for this payment
+}
+
+// Get the relay URL from environment variables or use a default
+const RELAY_URL = process.env.NEXT_PUBLIC_NOSTR_RELAY_URL || 'wss://relay.example.com';
+
+// Add window.nostr type for NIP-07 browser extensions
+declare global {
+  interface Window {
+    nostr?: {
+      getPublicKey(): Promise<string>
+      signEvent(event: any): Promise<string | { sig: string }>
+    }
+  }
 }
 
 export default function WalletPage() {
   const [incomingPayments, setIncomingPayments] = useState<IncomingPayment[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [nostrPool, setNostrPool] = useState<SimplePool | null>(null)
+  const [processingZipZap, setProcessingZipZap] = useState<string | null>(null)
+  const [processingStatus, setProcessingStatus] = useState<{id: string, status: string, message: string}[]>([])
+  const [lastProcessedTime, setLastProcessedTime] = useState<number>(0)
 
   // Helper function to format millisatoshi to sats
   const formatSats = (amountMsat: any) => {
@@ -221,13 +254,36 @@ export default function WalletPage() {
   }
 
   useEffect(() => {
-    fetchIncomingPayments()
+    // Initialize the Nostr relay pool
+    const pool = new SimplePool();
+    setNostrPool(pool);
+    
+    fetchIncomingPayments();
     
     // Poll for updates every 30 seconds
-    const interval = setInterval(fetchIncomingPayments, 30000)
+    const interval = setInterval(fetchIncomingPayments, 30000);
     
-    return () => clearInterval(interval)
-  }, [])
+    return () => {
+      // Clean up
+      clearInterval(interval);
+      pool.close([RELAY_URL]);
+    };
+  }, []);
+  
+  // Process new payments every time incomingPayments changes
+  useEffect(() => {
+    // Check if we need to process any ZipZaps
+    const now = Date.now();
+    
+    // Only process if at least 10 seconds have passed since last check
+    // This prevents excessive processing when multiple state updates happen
+    if (now - lastProcessedTime < 10000) {
+      return;
+    }
+    
+    setLastProcessedTime(now);
+    processZipZapPayments();
+  }, [incomingPayments])
 
   // Helper function to get status badge styling
   const getStatusBadge = (status: string) => {
@@ -265,6 +321,369 @@ export default function WalletPage() {
     }
     
     return status || 'UNKNOWN';
+  }
+  
+  // Function to extract note IDs from text or JSON
+  const extractNoteIds = (text: string): string[] => {
+    if (!text) return [];
+    
+    console.log('Analyzing text for note IDs:', text);
+    const foundIds: string[] = [];
+    
+    // Look for "note1..." pattern (NIP-19 encoded note IDs)
+    const noteRegex = /\b(note1[a-zA-Z0-9]{20,})\b/g;
+    const directMatches = Array.from(text.matchAll(noteRegex), m => m[1]);
+    foundIds.push(...directMatches);
+    
+    // Try to parse as JSON (for structured payer notes like ZipZap events)
+    try {
+      // Check if the text might be JSON
+      if (text.trim().startsWith('{') && text.trim().endsWith('}')) {
+        const jsonObj = JSON.parse(text);
+        
+        // If it's a kind 9912 event, extract its ID
+        if (jsonObj && jsonObj.kind === 9912 && jsonObj.id) {
+          // Encode the event ID as a note
+          try {
+            const noteId = nip19.noteEncode(jsonObj.id);
+            console.log('Found event ID in JSON and encoded as note:', noteId);
+            foundIds.push(noteId);
+          } catch (err) {
+            console.error('Failed to encode event ID as note:', err);
+          }
+        }
+      }
+    } catch (err) {
+      // Not valid JSON, ignore
+      console.log('Note is not valid JSON, continuing with regex matches only');
+    }
+    
+    console.log('Found note IDs:', foundIds);
+    return foundIds;
+  }
+  
+  // Function to decode note ID to hex
+  const decodeNoteId = async (noteId: string): Promise<string | null> => {
+    try {
+      const { type, data } = nip19.decode(noteId);
+      if (type === 'note') {
+        return data as string; // The hex event ID
+      }
+      return null;
+    } catch (err) {
+      console.error('Failed to decode note ID:', err);
+      return null;
+    }
+  }
+  
+  // Function to fetch a ZipZap event from the relay
+  const fetchZipZapEvent = async (eventId: string): Promise<NostrEvent | null> => {
+    if (!nostrPool) return null;
+    
+    try {
+      console.log(`Fetching ZipZap event with ID: ${eventId}`);
+      
+      // Ensure we're using the hex ID format
+      let hexId = eventId;
+      if (eventId.startsWith('note1')) {
+        try {
+          const { type, data } = nip19.decode(eventId);
+          if (type === 'note') {
+            hexId = data as string;
+          }
+        } catch (err) {
+          console.error('Failed to decode note ID:', err);
+          return null;
+        }
+      }
+      
+      console.log(`Using hex ID for query: ${hexId}`);
+      
+      // Query with a small timeout to prevent hanging
+      const events = await Promise.race([
+        nostrPool.querySync([RELAY_URL], {
+          ids: [hexId],
+          kinds: [9912], // Only kind 9912 (ZipZap request)
+        }),
+        new Promise<any[]>((resolve) => setTimeout(() => resolve([]), 5000))
+      ]);
+      
+      if (events && events.length > 0) {
+        console.log('Found ZipZap event:', events[0]);
+        return events[0];
+      } else {
+        console.log('No ZipZap event found with that ID');
+        return null;
+      }
+    } catch (err) {
+      console.error('Failed to fetch ZipZap event:', err);
+      return null;
+    }
+  }
+  
+  // Function to create and publish a ZipZap receipt (kind 9913)
+  const createZipZapReceipt = async (zipZapEvent: NostrEvent, payment: IncomingPayment): Promise<boolean> => {
+    // Get the target pubkey and post ID from the zipZapEvent
+    const targetPubkey = zipZapEvent.pubkey; // pubkey of the ZipZap sender
+    
+    // Get the post ID and LNO from the ZipZap event tags
+    let postId = '';
+    let lnoTag = '';
+    
+    for (const tag of zipZapEvent.tags) {
+      if (tag[0] === 'e') {
+        postId = tag[1];
+      } else if (tag[0] === 'lno') {
+        lnoTag = tag[1];
+      }
+    }
+    
+    if (!postId) {
+      console.error('ZipZap event missing required post ID tag');
+      return false;
+    }
+    
+    // Get our pubkey for signing
+    const storedPubkey = localStorage.getItem('nostr_pubkey');
+    const storedNsec = localStorage.getItem('nostr_nsec');
+    
+    if (!storedPubkey && !storedNsec) {
+      console.error('No signing key available for creating ZipZap receipt');
+      return false;
+    }
+    
+    let pubkey: string;
+    if (storedPubkey) {
+      pubkey = storedPubkey;
+    } else {
+      const { type, data: secretKey } = nip19.decode(storedNsec!);
+      if (type !== 'nsec') {
+        console.error('Invalid secret key');
+        return false;
+      }
+      pubkey = getPublicKey(secretKey);
+    }
+    
+    // Fix for "created_at too late" - use a timestamp slightly in the past (30 seconds)
+    const now = Math.floor(Date.now() / 1000) - 30;
+    
+    // For payment receivedAt, ensure it's in seconds, not milliseconds
+    const receivedTime = payment.receivedAt ? 
+      (payment.receivedAt > 1000000000000 ? Math.floor(payment.receivedAt / 1000) : payment.receivedAt) : 
+      now;
+    
+    // Use the earlier of the two timestamps to prevent "created_at too late" errors
+    const safeTimestamp = Math.min(now, receivedTime);
+    
+    // Get payment amount in satoshis for the amount tag
+    let amountSats = "0";
+    if (typeof payment.amountMsat === 'number') {
+      amountSats = String(Math.floor(payment.amountMsat / 1000));
+    } else if (typeof payment.amountMsat === 'object' && payment.amountMsat?.value) {
+      amountSats = String(Math.floor(Number(payment.amountMsat.value) / 1000));
+    }
+    
+    console.log(`Creating ZipZap receipt with timestamp ${safeTimestamp} and amount ${amountSats} sats`);
+    
+    // Create the receipt event
+    const receiptEvent = {
+      kind: 9913,
+      created_at: safeTimestamp,
+      pubkey,
+      tags: [
+        ['p', pubkey], // my pubkey as the recipient
+        ['P', targetPubkey], // pubkey of the ZipZap sender
+        ['e', postId], // id of the post that was zapped
+        ['amount', amountSats], // Add the payment amount in sats
+      ],
+      content: '',
+    };
+    
+    // Add lno tag if available
+    if (lnoTag) {
+      receiptEvent.tags.push(['lno', lnoTag]);
+    }
+    
+    // Calculate the ID
+    const id = getEventHash(receiptEvent);
+    const eventToSign = { ...receiptEvent, id };
+    
+    try {
+      let signedEvent: NostrEvent;
+      
+      // Sign with extension or local key
+      if (storedPubkey) {
+        if (!window.nostr) {
+          throw new Error('Nostr extension not found');
+        }
+        
+        // @ts-ignore
+        const sig = await window.nostr.signEvent(eventToSign);
+        
+        // Handle different signature formats
+        let finalSig = sig;
+        if (typeof sig === 'object' && sig !== null) {
+          if ('sig' in sig) {
+            finalSig = sig.sig;
+          } else {
+            throw new Error('Unexpected signature format');
+          }
+        }
+        
+        signedEvent = {
+          ...eventToSign,
+          sig: finalSig,
+        };
+      } else {
+        // Sign with local key
+        const { type, data: secretKey } = nip19.decode(storedNsec!);
+        if (type !== 'nsec') throw new Error('Invalid secret key');
+        
+        signedEvent = finalizeEvent(eventToSign, secretKey);
+      }
+      
+      // Verify the event
+      if (!verifyEvent(signedEvent)) {
+        throw new Error('Event verification failed');
+      }
+      
+      // Publish to relay
+      console.log('Publishing ZipZap receipt:', signedEvent);
+      const pub = nostrPool!.publish([RELAY_URL], signedEvent);
+      
+      await Promise.race([
+        pub,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Publish timeout')), 5000))
+      ]);
+      
+      console.log('Successfully published ZipZap receipt');
+      return true;
+    } catch (err) {
+      console.error('Failed to create or publish ZipZap receipt:', err);
+      return false;
+    }
+  }
+  
+  // Function to process all unprocessed payments
+  const processZipZapPayments = async () => {
+    if (!nostrPool || processingZipZap) return;
+    
+    // Look for received payments with payer notes containing "note1..."
+    const paymentsToProcess = incomingPayments.filter(payment => 
+      (payment.status === 'RECEIVED' || formatStatus(payment.status) === 'RECEIVED') && 
+      !payment.processedZipZap &&
+      (payment.payerNote || payment.description)
+    );
+    
+    if (paymentsToProcess.length === 0) return;
+    
+    console.log(`Found ${paymentsToProcess.length} payments to check for ZipZap notes`);
+    
+    // Process each payment one by one
+    for (const payment of paymentsToProcess) {
+      try {
+        setProcessingZipZap(payment.paymentHash);
+        
+        // Extract note IDs from payer note or description
+        const text = payment.payerNote || payment.description || '';
+        const noteIds = extractNoteIds(text);
+        
+        if (noteIds.length === 0) {
+          // No note IDs found, mark as processed and continue
+          setIncomingPayments(prev => prev.map(p => 
+            p.paymentHash === payment.paymentHash ? { ...p, processedZipZap: true } : p
+          ));
+          continue;
+        }
+        
+        console.log(`Found ${noteIds.length} note IDs in payment ${payment.paymentHash}`, noteIds);
+        
+        // Process the first note ID we find
+        const noteId = noteIds[0];
+        
+        // Update status
+        setProcessingStatus(prev => [...prev, {
+          id: payment.paymentHash,
+          status: 'decoding',
+          message: `Decoding note ID: ${noteId}`
+        }]);
+        
+        // Decode note ID to get the event ID
+        const eventId = await decodeNoteId(noteId);
+        if (!eventId) {
+          console.log('Failed to decode note ID, marking payment as processed');
+          setIncomingPayments(prev => prev.map(p => 
+            p.paymentHash === payment.paymentHash ? { ...p, processedZipZap: true } : p
+          ));
+          continue;
+        }
+        
+        // Update status
+        setProcessingStatus(prev => [...prev, {
+          id: payment.paymentHash,
+          status: 'fetching',
+          message: `Fetching ZipZap event with ID: ${eventId}`
+        }]);
+        
+        // Fetch the ZipZap event
+        const zipZapEvent = await fetchZipZapEvent(eventId);
+        if (!zipZapEvent) {
+          console.log('No ZipZap event found for this note ID, marking payment as processed');
+          setIncomingPayments(prev => prev.map(p => 
+            p.paymentHash === payment.paymentHash ? { ...p, processedZipZap: true } : p
+          ));
+          continue;
+        }
+        
+        // Verify it's a kind 9912 event
+        if (zipZapEvent.kind !== 9912) {
+          console.log('Found event is not a ZipZap request (kind 9912), marking payment as processed');
+          setIncomingPayments(prev => prev.map(p => 
+            p.paymentHash === payment.paymentHash ? { ...p, processedZipZap: true } : p
+          ));
+          continue;
+        }
+        
+        // Update status
+        setProcessingStatus(prev => [...prev, {
+          id: payment.paymentHash,
+          status: 'creating',
+          message: 'Creating and publishing ZipZap receipt'
+        }]);
+        
+        // Create and publish the ZipZap receipt
+        const success = await createZipZapReceipt(zipZapEvent, payment);
+        
+        // Update status
+        setProcessingStatus(prev => [...prev, {
+          id: payment.paymentHash,
+          status: success ? 'success' : 'error',
+          message: success ? 'ZipZap receipt published successfully' : 'Failed to publish ZipZap receipt'
+        }]);
+        
+        // Mark payment as processed regardless of outcome
+        setIncomingPayments(prev => prev.map(p => 
+          p.paymentHash === payment.paymentHash ? { ...p, processedZipZap: true } : p
+        ));
+      } catch (err) {
+        console.error(`Error processing payment ${payment.paymentHash}:`, err);
+        
+        // Update status
+        setProcessingStatus(prev => [...prev, {
+          id: payment.paymentHash,
+          status: 'error',
+          message: `Error: ${err instanceof Error ? err.message : 'Unknown error'}`
+        }]);
+        
+        // Mark as processed to avoid infinite retry
+        setIncomingPayments(prev => prev.map(p => 
+          p.paymentHash === payment.paymentHash ? { ...p, processedZipZap: true } : p
+        ));
+      }
+    }
+    
+    // Reset processing state
+    setProcessingZipZap(null);
   }
 
   return (
@@ -345,6 +764,11 @@ export default function WalletPage() {
                           <span className={`ml-2 px-2 py-0.5 text-xs rounded-full ${getStatusBadge(payment.status)}`}>
                             {formatStatus(payment.status)}
                           </span>
+                          {payment.processedZipZap && (
+                            <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
+                              ZipZap
+                            </span>
+                          )}
                         </div>
                         <div className="text-lg font-bold">
                           {formatSats(payment.amountMsat)} sats
@@ -387,6 +811,59 @@ export default function WalletPage() {
                 </div>
               )}
             </div>
+            
+            {/* ZipZap Processing Status */}
+            {processingStatus.length > 0 && (
+              <div className="mb-8">
+                <h2 className="text-xl font-semibold mb-4">ZipZap Processing</h2>
+                <div className="space-y-2">
+                  {processingStatus.slice(-10).map((status, index) => (
+                    <div 
+                      key={`${status.id}-${index}`}
+                      className={`p-3 rounded-lg text-sm ${
+                        status.status === 'error' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' :
+                        status.status === 'success' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
+                        'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        {status.status === 'error' ? (
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                          </svg>
+                        ) : status.status === 'success' ? (
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                          </svg>
+                        ) : (
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 shrink-0 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeOpacity="0.25" fill="none" />
+                            <path d="M12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2Z" strokeOpacity="0.75" fill="none" />
+                            <path d="M12 2C6.47715 2 2 6.47715 2 12" strokeLinecap="round" fill="none" />
+                          </svg>
+                        )}
+                        <span>{status.message}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {processingZipZap && (
+                  <div className="mt-4">
+                    <p className="text-sm text-center text-gray-500 dark:text-gray-400">
+                      Processing ZipZap for payment {processingZipZap.substring(0, 8)}...
+                    </p>
+                  </div>
+                )}
+                <Button 
+                  onClick={() => setProcessingStatus([])}
+                  variant="outline"
+                  size="sm"
+                  className="mt-4 w-full"
+                >
+                  Clear Log
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       </div>
