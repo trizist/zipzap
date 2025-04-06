@@ -55,3 +55,36 @@
     @apply bg-[hsl(var(--background))] text-[hsl(var(--foreground))];
   }
 }
+
+@keyframes goldShimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.gold-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.gold-shimmer::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    90deg, 
+    transparent 0%, 
+    rgba(255, 215, 0, 0.25) 50%, 
+    transparent 100%
+  );
+  background-size: 400% 100%; /* Increased size for smoother looping */
+  pointer-events: none;
+  animation: goldShimmer 8s infinite ease-in-out; /* Slowed down to 8 seconds for a more elegant effect */
+  z-index: 1;
+}

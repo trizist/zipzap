@@ -635,7 +635,7 @@ export default function Home() {
                 {posts.map(post => (
                   <div 
                     key={post.id} 
-                    className="p-4 rounded-lg bg-gray-100 dark:bg-gray-800"
+                    className={`p-4 rounded-lg bg-gray-100 dark:bg-gray-800 ${post.zipZapReceipts && post.zipZapReceipts.length > 0 ? 'gold-shimmer' : ''}`}
                   >
                     <div className="flex items-start gap-3">
                       <Avatar className="w-10 h-10">
