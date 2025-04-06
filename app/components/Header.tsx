@@ -133,47 +133,57 @@ export default function Header(props: HeaderProps = {}) {
             >
               ZipZap
             </Link>
-            {npub ? (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button className="w-8 h-8 rounded-full bg-gray-800 text-white flex items-center justify-center hover:bg-gray-700 transition-all cursor-pointer">
-                    {getInitials()}
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent 
-                  align="end" 
-                  className="z-[100] bg-gray-900 border border-gray-800 mt-2"
-                  sideOffset={5}
-                >
-                  {WALLET_ENABLED ? (
-                    <DropdownMenuItem asChild className="cursor-pointer focus:bg-gray-800 focus:text-white">
-                      <Link href="/wallet" className="w-full text-white">Wallet</Link>
-                    </DropdownMenuItem>
-                  ) : (
-                    <DropdownMenuItem className="cursor-not-allowed opacity-50 text-gray-400">
-                      Wallet (Disabled)
-                    </DropdownMenuItem>
-                  )}
-                  <DropdownMenuItem asChild className="cursor-pointer focus:bg-gray-800 focus:text-white">
-                    <Link href="/profile" className="w-full text-white">Edit Profile</Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator className="bg-gray-800" />
-                  <DropdownMenuItem 
-                    onClick={handleLogout}
-                    className="cursor-pointer focus:bg-gray-800 focus:text-white text-white"
-                  >
-                    Log Out
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            ) : (
-              <Button 
-                onClick={() => router.push('/login')}
-                className="bg-white text-gray-900 hover:bg-gray-100 transition-all"
+            <div className="flex items-center gap-4">
+              <a 
+                href="https://github.com/sbddesign/zipzap" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-gray-400 hover:text-white transition-colors text-sm"
               >
-                Log In
-              </Button>
-            )}
+                Source Code
+              </a>
+              {npub ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className="w-8 h-8 rounded-full bg-gray-800 text-white flex items-center justify-center hover:bg-gray-700 transition-all cursor-pointer">
+                      {getInitials()}
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent 
+                    align="end" 
+                    className="z-[100] bg-gray-900 border border-gray-800 mt-2"
+                    sideOffset={5}
+                  >
+                    {WALLET_ENABLED ? (
+                      <DropdownMenuItem asChild className="cursor-pointer focus:bg-gray-800 focus:text-white">
+                        <Link href="/wallet" className="w-full text-white">Wallet</Link>
+                      </DropdownMenuItem>
+                    ) : (
+                      <DropdownMenuItem className="cursor-not-allowed opacity-50 text-gray-400">
+                        Wallet (Disabled)
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuItem asChild className="cursor-pointer focus:bg-gray-800 focus:text-white">
+                      <Link href="/profile" className="w-full text-white">Edit Profile</Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator className="bg-gray-800" />
+                    <DropdownMenuItem 
+                      onClick={handleLogout}
+                      className="cursor-pointer focus:bg-gray-800 focus:text-white text-white"
+                    >
+                      Log Out
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : (
+                <Button 
+                  onClick={() => router.push('/login')}
+                  className="bg-white text-gray-900 hover:bg-gray-100 transition-all"
+                >
+                  Log In
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       </div>
