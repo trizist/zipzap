@@ -2,7 +2,7 @@
 
 import { Button } from "@/app/components/ui/button"
 import { useRouter } from 'next/navigation'
-import { generateSecretKey, getPublicKey } from 'nostr-tools'
+import { generateSecretKey } from 'nostr-tools'
 import * as nip19 from 'nostr-tools/nip19'
 import Header from '../components/Header'
 import { useState } from 'react'
@@ -11,7 +11,7 @@ declare global {
   interface Window {
     nostr?: {
       getPublicKey(): Promise<string>
-      signEvent(event: any): Promise<string>
+      signEvent(event: unknown): Promise<string>
     }
   }
 }
@@ -58,7 +58,7 @@ export default function LoginPage() {
         <div className="max-w-[800px] mx-auto w-full">
           <div className="py-12 flex flex-col items-center justify-center text-center">
             <h2 className="text-4xl font-bold mb-4">Welcome to ZipZap</h2>
-            <p className="text-lg text-muted-foreground mb-8">Choose how you'd like to get started</p>
+            <p className="text-lg text-muted-foreground mb-8">Choose how you&apos;d like to get started</p>
             <div className="space-y-4 w-full max-w-[300px]">
               <Button 
                 onClick={handleExtensionLogin}

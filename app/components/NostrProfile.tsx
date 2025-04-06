@@ -71,6 +71,7 @@ export default function NostrProfile() {
     return () => {
       newPool.close([RELAY_URL])
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const fetchProfile = async (poolInstance: SimplePool, pubkey: string) => {

@@ -10,6 +10,7 @@ import { getPublicKey, getEventHash, verifyEvent } from 'nostr-tools'
 import { Avatar, AvatarFallback, AvatarImage } from "@/app/components/ui/avatar"
 import { Textarea } from "@/app/components/ui/textarea"
 import { finalizeEvent } from 'nostr-tools/pure'
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import type { UnsignedEvent } from 'nostr-tools'
 import { LightningIcon } from '@bitcoin-design/bitcoin-icons-react/filled'
 import ZipZapModal from './components/ZipZapModal'
@@ -106,14 +107,16 @@ export default function Home() {
       clearInterval(refreshInterval);
       newPool.close([RELAY_URL])
     }
+  // We don't want to add fetchPosts and posts.length as dependencies because they would cause re-fetching
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   
   // Also refresh posts when a ZipZap is created
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const refreshPosts = React.useCallback((poolInstance) => {
     if (poolInstance) {
       fetchPosts(poolInstance);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -346,7 +349,7 @@ export default function Home() {
 
           try {
             // Get the signature from Alby
-            // @ts-ignore - Ignore type checking for now
+            // @ts-expect-error - Type not correctly specified in Nostr extension
             const sig = await window.nostr.signEvent(eventToSign)
             console.log('Raw signature from Alby:', sig)
             console.log('Signature type:', typeof sig)
@@ -495,7 +498,7 @@ export default function Home() {
         }
 
         // Get the signature from Alby
-        // @ts-ignore - Ignore type checking for now
+        // @ts-expect-error - Type not correctly specified in Nostr extension
         const sig = await window.nostr.signEvent({
           ...baseEvent,
           id

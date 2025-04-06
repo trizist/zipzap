@@ -3,11 +3,12 @@
 import { Button } from "@/app/components/ui/button"
 import { Input } from "@/app/components/ui/input"
 import { Textarea } from "@/app/components/ui/textarea"
-import { generateSecretKey, getPublicKey, SimplePool, getEventHash, verifyEvent } from 'nostr-tools'
+import { getPublicKey, SimplePool, getEventHash, verifyEvent } from 'nostr-tools'
 import { finalizeEvent } from 'nostr-tools/pure'
 import * as nip19 from 'nostr-tools/nip19'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import type { UnsignedEvent } from 'nostr-tools'
 import Header from '../components/Header'
 
@@ -139,7 +140,7 @@ export default function ProfilePage() {
 
           try {
             // Get the signature from Alby
-            // @ts-ignore - Ignore type checking for now
+            // @ts-expect-error - Type not correctly specified in Nostr extension
             const sig = await window.nostr.signEvent(eventToSign)
             console.log('Raw signature from Alby:', sig)
             console.log('Signature type:', typeof sig)

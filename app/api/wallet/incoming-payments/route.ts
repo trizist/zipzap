@@ -92,7 +92,7 @@ export async function GET() {
         
       // Return the data directly as an array
       return NextResponse.json(data);
-    } catch (fetchError: any) {
+    } catch (fetchError: unknown) {
       console.error('Fetch operation error:', fetchError);
       
       // Check if it's a connection error (most likely phoenixd is not running)
@@ -120,10 +120,10 @@ export async function GET() {
       
       throw fetchError; // Re-throw to be caught by the outer catch block
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error in API route:', error);
     return NextResponse.json(
-      { error: `Server error: ${error.message || 'Unknown error'}` },
+      { error: `Server error: ${error instanceof Error ? error.message : 'Unknown error'}` },
       { status: 500 }
     );
   }

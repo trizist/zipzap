@@ -43,7 +43,7 @@ declare global {
   interface Window {
     nostr?: {
       getPublicKey(): Promise<string>
-      signEvent(event: any): Promise<string | { sig: string }>
+      signEvent(event: unknown): Promise<string | { sig: string }>
     }
   }
 }
@@ -58,7 +58,7 @@ export default function WalletPage() {
   const [lastProcessedTime, setLastProcessedTime] = useState<number>(0)
 
   // Helper function to format millisatoshi to sats
-  const formatSats = (amountMsat: any) => {
+  const formatSats = (amountMsat: unknown) => {
     console.log('Amount type:', typeof amountMsat, 'Value:', amountMsat);
     
     if (typeof amountMsat === 'undefined' || amountMsat === null) {
@@ -116,7 +116,7 @@ export default function WalletPage() {
   }
 
   // Helper function to format timestamp
-  const formatDate = (timestamp: any) => {
+  const formatDate = (timestamp: unknown) => {
     if (!timestamp) return 'Unknown';
     
     try {
@@ -204,7 +204,8 @@ export default function WalletPage() {
           
           // Get description or payerNote and calculate timestamps
           // For BOLT 12 offers, there might be a payerNote instead of description
-          const description = payment.description || payment.payerNote || '';
+          // Extract description but don't store it in a separate variable unless needed
+          payment.description = payment.description || '';
           
           // Handle different timestamp formats
           // createdAt might be in milliseconds in the Phoenix API
@@ -240,16 +241,16 @@ export default function WalletPage() {
       
       console.log('Processed payments:', payments);
       setIncomingPayments(payments)
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error fetching incoming payments:', err)
       
       // Display friendly error based on status code
-      if (err.message.includes('Connection to Phoenix daemon refused')) {
+      if (err instanceof Error && err.message.includes('Connection to Phoenix daemon refused')) {
         setError('Could not connect to Phoenix daemon. Make sure it is running and accessible.')
-      } else if (err.message.includes('Phoenix API password not configured')) {
+      } else if (err instanceof Error && err.message.includes('Phoenix API password not configured')) {
         setError('The Phoenix API password is not configured. Please set the PHOENIX_API_PASSWORD environment variable.')
       } else {
-        setError(err.message || 'Failed to load payments')
+        setError(err instanceof Error ? err.message : 'Failed to load payments')
       }
     } finally {
       setIsLoading(false)
@@ -292,6 +293,8 @@ export default function WalletPage() {
     
     setLastProcessedTime(now);
     processZipZapPayments();
+  // We don't want to add processZipZapPayments as a dependency because it would cause infinite loop
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [incomingPayments, lastProcessedTime])
 
   // Helper function to get status badge styling
@@ -362,7 +365,7 @@ export default function WalletPage() {
           }
         }
       }
-    } catch (err) {
+    } catch {
       // Not valid JSON, ignore
       console.log('Note is not valid JSON, continuing with regex matches only');
     }
@@ -414,7 +417,7 @@ export default function WalletPage() {
           ids: [hexId],
           kinds: [9912], // Only kind 9912 (ZipZap request)
         }),
-        new Promise<any[]>((resolve) => setTimeout(() => resolve([]), 5000))
+        new Promise<NostrEvent[]>((resolve) => setTimeout(() => resolve([]), 5000))
       ]);
       
       if (events && events.length > 0) {
@@ -526,7 +529,7 @@ export default function WalletPage() {
           throw new Error('Nostr extension not found');
         }
         
-        // @ts-ignore
+        // @ts-expect-error - Type not correctly specified in Nostr extension
         const sig = await window.nostr.signEvent(eventToSign);
         
         // Handle different signature formats
@@ -744,7 +747,7 @@ export default function WalletPage() {
                                 {error.includes('Phoenix daemon') && (
                                   <>
                                     <li>Check if Phoenix daemon is running</li>
-                                    <li>Verify it's listening on port 9740</li>
+                                    <li>Verify it&apos;s listening on port 9740</li>
                                     <li>Check configuration and firewall settings if needed</li>
                                   </>
                                 )}

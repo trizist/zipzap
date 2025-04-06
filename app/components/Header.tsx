@@ -32,7 +32,7 @@ export default function Header() {
   const router = useRouter()
   const [npub, setNpub] = useState<string | null>(null)
   const [profile, setProfile] = useState<ProfileMetadata>({})
-  const [pool, setPool] = useState<SimplePool | null>(null)
+  const [, setPool] = useState<SimplePool | null>(null)
 
   useEffect(() => {
     const newPool = new SimplePool()
