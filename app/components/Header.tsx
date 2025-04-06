@@ -10,6 +10,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator
 } from "@/app/components/ui/dropdown-menu"
 import { SimplePool } from 'nostr-tools'
 import { Button } from "@/app/components/ui/button"
@@ -19,6 +20,7 @@ if (!process.env.NEXT_PUBLIC_NOSTR_RELAY_URL) {
 }
 
 const RELAY_URL = process.env.NEXT_PUBLIC_NOSTR_RELAY_URL
+const WALLET_ENABLED = process.env.NEXT_PUBLIC_USE_WALLET === 'true'
 
 interface ProfileMetadata {
   name?: string
@@ -133,12 +135,19 @@ export default function Header() {
                   className="z-[100] bg-gray-900 border border-gray-800 mt-2"
                   sideOffset={5}
                 >
-                  <DropdownMenuItem asChild className="cursor-pointer focus:bg-gray-800 focus:text-white">
-                    <Link href="/wallet" className="w-full text-white">Wallet</Link>
-                  </DropdownMenuItem>
+                  {WALLET_ENABLED ? (
+                    <DropdownMenuItem asChild className="cursor-pointer focus:bg-gray-800 focus:text-white">
+                      <Link href="/wallet" className="w-full text-white">Wallet</Link>
+                    </DropdownMenuItem>
+                  ) : (
+                    <DropdownMenuItem className="cursor-not-allowed opacity-50 text-gray-400">
+                      Wallet (Disabled)
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuItem asChild className="cursor-pointer focus:bg-gray-800 focus:text-white">
                     <Link href="/profile" className="w-full text-white">Edit Profile</Link>
                   </DropdownMenuItem>
+                  <DropdownMenuSeparator className="bg-gray-800" />
                   <DropdownMenuItem 
                     onClick={handleLogout}
                     className="cursor-pointer focus:bg-gray-800 focus:text-white text-white"

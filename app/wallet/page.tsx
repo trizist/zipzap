@@ -35,6 +35,9 @@ interface IncomingPayment {
 // Get the relay URL from environment variables or use a default
 const RELAY_URL = process.env.NEXT_PUBLIC_NOSTR_RELAY_URL || 'wss://relay.example.com';
 
+// Check if wallet is enabled via environment variable
+const WALLET_ENABLED = process.env.NEXT_PUBLIC_USE_WALLET === 'true';
+
 // Add window.nostr type for NIP-07 browser extensions
 declare global {
   interface Window {
@@ -254,6 +257,9 @@ export default function WalletPage() {
   }
 
   useEffect(() => {
+    // Skip if wallet is not enabled
+    if (!WALLET_ENABLED) return;
+    
     // Initialize the Nostr relay pool
     const pool = new SimplePool();
     setNostrPool(pool);
@@ -272,6 +278,9 @@ export default function WalletPage() {
   
   // Process new payments every time incomingPayments changes
   useEffect(() => {
+    // Skip if wallet is not enabled
+    if (!WALLET_ENABLED) return;
+    
     // Check if we need to process any ZipZaps
     const now = Date.now();
     
@@ -283,7 +292,7 @@ export default function WalletPage() {
     
     setLastProcessedTime(now);
     processZipZapPayments();
-  }, [incomingPayments])
+  }, [incomingPayments, lastProcessedTime])
 
   // Helper function to get status badge styling
   const getStatusBadge = (status: string) => {
@@ -692,177 +701,191 @@ export default function WalletPage() {
       <div className="w-full flex-1 px-4 sm:px-6 lg:px-8">
         <div className="max-w-[800px] mx-auto w-full">
           <div className="py-8">
-            <div className="flex justify-between items-center mb-6">
-              <h1 className="text-3xl font-bold">Wallet</h1>
-              <Button 
-                onClick={fetchIncomingPayments}
-                variant="outline"
-                size="sm"
-                disabled={isLoading}
-              >
-                {isLoading ? 'Refreshing...' : 'Refresh'}
-              </Button>
-            </div>
-            
-            <div className="mb-8">
-              <h2 className="text-xl font-semibold mb-4">Incoming Payments</h2>
-              
-              {error && (
-                <div className="p-4 mb-4 rounded-lg bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">
-                  <div className="flex items-start gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mt-0.5 shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                    </svg>
-                    <div>
-                      <p className="font-semibold mb-1">Connection Error</p>
-                      <p>{error}</p>
-                      {(error.includes('Phoenix daemon') || error.includes('PHOENIX_API_PASSWORD')) && (
-                        <div className="mt-2 text-sm">
-                          <p className="font-medium">Troubleshooting steps:</p>
-                          <ul className="list-disc list-inside ml-2 mt-1 space-y-1">
-                            {error.includes('Phoenix daemon') && (
-                              <>
-                                <li>Check if Phoenix daemon is running</li>
-                                <li>Verify it's listening on port 9740</li>
-                                <li>Check configuration and firewall settings if needed</li>
-                              </>
-                            )}
-                            {error.includes('PHOENIX_API_PASSWORD') && (
-                              <>
-                                <li>Add PHOENIX_API_PASSWORD to your .env file</li>
-                                <li>Restart the Next.js server after updating environment variables</li>
-                              </>
-                            )}
-                          </ul>
-                        </div>
-                      )}
-                    </div>
-                  </div>
+            {!WALLET_ENABLED ? (
+              <div className="p-8 text-center border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg">
+                <h2 className="text-2xl font-bold mb-4">Wallet Not Activated</h2>
+                <p className="text-gray-600 dark:text-gray-400 mb-6">
+                  The wallet feature is not enabled in this deployment.
+                </p>
+                <p className="text-sm text-gray-500 dark:text-gray-500">
+                  Set <code className="bg-gray-200 dark:bg-gray-800 px-1 py-0.5 rounded">NEXT_PUBLIC_USE_WALLET=true</code> in your environment variables to enable it.
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="flex justify-between items-center mb-6">
+                  <h1 className="text-3xl font-bold">Wallet</h1>
+                  <Button 
+                    onClick={fetchIncomingPayments}
+                    variant="outline"
+                    size="sm"
+                    disabled={isLoading}
+                  >
+                    {isLoading ? 'Refreshing...' : 'Refresh'}
+                  </Button>
                 </div>
-              )}
-              
-              {isLoading && !error && incomingPayments.length === 0 ? (
-                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                  Loading payments...
-                </div>
-              ) : incomingPayments.length === 0 ? (
-                <div className="text-center py-8 border rounded-lg border-dashed border-gray-300 dark:border-gray-700">
-                  <p className="text-gray-500 dark:text-gray-400">No incoming payments found</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {incomingPayments.map((payment) => (
-                    <div 
-                      key={payment.paymentHash} 
-                      className="p-4 rounded-lg bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700"
-                    >
-                      <div className="flex justify-between items-start mb-2">
+                
+                <div className="mb-8">
+                  <h2 className="text-xl font-semibold mb-4">Incoming Payments</h2>
+                  
+                  {error && (
+                    <div className="p-4 mb-4 rounded-lg bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">
+                      <div className="flex items-start gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mt-0.5 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                        </svg>
                         <div>
-                          <span className="font-mono text-sm text-gray-600 dark:text-gray-400">
-                            {payment.paymentHash.substring(0, 10)}...
-                          </span>
-                          <span className={`ml-2 px-2 py-0.5 text-xs rounded-full ${getStatusBadge(payment.status)}`}>
-                            {formatStatus(payment.status)}
-                          </span>
-                          {payment.processedZipZap && (
-                            <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
-                              ZipZap
-                            </span>
+                          <p className="font-semibold mb-1">Connection Error</p>
+                          <p>{error}</p>
+                          {(error.includes('Phoenix daemon') || error.includes('PHOENIX_API_PASSWORD')) && (
+                            <div className="mt-2 text-sm">
+                              <p className="font-medium">Troubleshooting steps:</p>
+                              <ul className="list-disc list-inside ml-2 mt-1 space-y-1">
+                                {error.includes('Phoenix daemon') && (
+                                  <>
+                                    <li>Check if Phoenix daemon is running</li>
+                                    <li>Verify it's listening on port 9740</li>
+                                    <li>Check configuration and firewall settings if needed</li>
+                                  </>
+                                )}
+                                {error.includes('PHOENIX_API_PASSWORD') && (
+                                  <>
+                                    <li>Add PHOENIX_API_PASSWORD to your .env file</li>
+                                    <li>Restart the Next.js server after updating environment variables</li>
+                                  </>
+                                )}
+                              </ul>
+                            </div>
                           )}
                         </div>
-                        <div className="text-lg font-bold">
-                          {formatSats(payment.amountMsat)} sats
-                        </div>
                       </div>
-                      
-                      {(payment.description || payment.payerNote) && (
-                        <div className="text-sm mb-2 text-gray-700 dark:text-gray-300">
-                          {payment.description ? (
-                            <p>{payment.description}</p>
-                          ) : payment.payerNote ? (
+                    </div>
+                  )}
+                  
+                  {isLoading && !error && incomingPayments.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                      Loading payments...
+                    </div>
+                  ) : incomingPayments.length === 0 ? (
+                    <div className="text-center py-8 border rounded-lg border-dashed border-gray-300 dark:border-gray-700">
+                      <p className="text-gray-500 dark:text-gray-400">No incoming payments found</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {incomingPayments.map((payment) => (
+                        <div 
+                          key={payment.paymentHash} 
+                          className="p-4 rounded-lg bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700"
+                        >
+                          <div className="flex justify-between items-start mb-2">
                             <div>
-                              <p className="font-medium mb-1">Payer Note:</p>
-                              <pre className="text-xs bg-gray-200 dark:bg-gray-900 p-2 rounded overflow-auto max-h-40">
-                                {payment.payerNote}
-                              </pre>
+                              <span className="font-mono text-sm text-gray-600 dark:text-gray-400">
+                                {payment.paymentHash.substring(0, 10)}...
+                              </span>
+                              <span className={`ml-2 px-2 py-0.5 text-xs rounded-full ${getStatusBadge(payment.status)}`}>
+                                {formatStatus(payment.status)}
+                              </span>
+                              {payment.processedZipZap && (
+                                <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
+                                  ZipZap
+                                </span>
+                              )}
                             </div>
-                          ) : null}
-                        </div>
-                      )}
-                      
-                      <div className="text-xs text-gray-500 dark:text-gray-400 mt-2 space-y-1">
-                        <div className="flex justify-between">
-                          <span>Created:</span>
-                          <span>{formatDate(payment.createdAt)}</span>
-                        </div>
-                        {payment.receivedAt && (
-                          <div className="flex justify-between">
-                            <span>Received:</span>
-                            <span>{formatDate(payment.receivedAt)}</span>
+                            <div className="text-lg font-bold">
+                              {formatSats(payment.amountMsat)} sats
+                            </div>
                           </div>
-                        )}
-                        <div className="flex justify-between">
-                          <span>Expires:</span>
-                          <span>{formatDate(payment.expiresAt)}</span>
+                          
+                          {(payment.description || payment.payerNote) && (
+                            <div className="text-sm mb-2 text-gray-700 dark:text-gray-300">
+                              {payment.description ? (
+                                <p>{payment.description}</p>
+                              ) : payment.payerNote ? (
+                                <div>
+                                  <p className="font-medium mb-1">Payer Note:</p>
+                                  <pre className="text-xs bg-gray-200 dark:bg-gray-900 p-2 rounded overflow-auto max-h-40">
+                                    {payment.payerNote}
+                                  </pre>
+                                </div>
+                              ) : null}
+                            </div>
+                          )}
+                          
+                          <div className="text-xs text-gray-500 dark:text-gray-400 mt-2 space-y-1">
+                            <div className="flex justify-between">
+                              <span>Created:</span>
+                              <span>{formatDate(payment.createdAt)}</span>
+                            </div>
+                            {payment.receivedAt && (
+                              <div className="flex justify-between">
+                                <span>Received:</span>
+                                <span>{formatDate(payment.receivedAt)}</span>
+                              </div>
+                            )}
+                            <div className="flex justify-between">
+                              <span>Expires:</span>
+                              <span>{formatDate(payment.expiresAt)}</span>
+                            </div>
+                          </div>
                         </div>
-                      </div>
+                      ))}
                     </div>
-                  ))}
+                  )}
                 </div>
-              )}
-            </div>
-            
-            {/* ZipZap Processing Status */}
-            {processingStatus.length > 0 && (
-              <div className="mb-8">
-                <h2 className="text-xl font-semibold mb-4">ZipZap Processing</h2>
-                <div className="space-y-2">
-                  {processingStatus.slice(-10).map((status, index) => (
-                    <div 
-                      key={`${status.id}-${index}`}
-                      className={`p-3 rounded-lg text-sm ${
-                        status.status === 'error' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' :
-                        status.status === 'success' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
-                        'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
-                      }`}
+                
+                {/* ZipZap Processing Status */}
+                {processingStatus.length > 0 && (
+                  <div className="mb-8">
+                    <h2 className="text-xl font-semibold mb-4">ZipZap Processing</h2>
+                    <div className="space-y-2">
+                      {processingStatus.slice(-10).map((status, index) => (
+                        <div 
+                          key={`${status.id}-${index}`}
+                          className={`p-3 rounded-lg text-sm ${
+                            status.status === 'error' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' :
+                            status.status === 'success' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
+                            'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            {status.status === 'error' ? (
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                              </svg>
+                            ) : status.status === 'success' ? (
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                              </svg>
+                            ) : (
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 shrink-0 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeOpacity="0.25" fill="none" />
+                                <path d="M12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2Z" strokeOpacity="0.75" fill="none" />
+                                <path d="M12 2C6.47715 2 2 6.47715 2 12" strokeLinecap="round" fill="none" />
+                              </svg>
+                            )}
+                            <span>{status.message}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    {processingZipZap && (
+                      <div className="mt-4">
+                        <p className="text-sm text-center text-gray-500 dark:text-gray-400">
+                          Processing ZipZap for payment {processingZipZap.substring(0, 8)}...
+                        </p>
+                      </div>
+                    )}
+                    <Button 
+                      onClick={() => setProcessingStatus([])}
+                      variant="outline"
+                      size="sm"
+                      className="mt-4 w-full"
                     >
-                      <div className="flex items-center gap-2">
-                        {status.status === 'error' ? (
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                          </svg>
-                        ) : status.status === 'success' ? (
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                          </svg>
-                        ) : (
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 shrink-0 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeOpacity="0.25" fill="none" />
-                            <path d="M12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2Z" strokeOpacity="0.75" fill="none" />
-                            <path d="M12 2C6.47715 2 2 6.47715 2 12" strokeLinecap="round" fill="none" />
-                          </svg>
-                        )}
-                        <span>{status.message}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                {processingZipZap && (
-                  <div className="mt-4">
-                    <p className="text-sm text-center text-gray-500 dark:text-gray-400">
-                      Processing ZipZap for payment {processingZipZap.substring(0, 8)}...
-                    </p>
+                      Clear Log
+                    </Button>
                   </div>
                 )}
-                <Button 
-                  onClick={() => setProcessingStatus([])}
-                  variant="outline"
-                  size="sm"
-                  className="mt-4 w-full"
-                >
-                  Clear Log
-                </Button>
-              </div>
+              </>
             )}
           </div>
         </div>
