@@ -4,6 +4,10 @@
 
 Social media tipping using Lightning, BOLT 12, & Nostr
 
+[⚡️ Try it out ⚡️](https://zipzapbolt12.netlify.app/)
+
+*You will need a BOLT 12 enabled wallet/node in order to zap on this site, but you can still see the zaps without a wallet.*
+
 ## Development
 
 First, run the development server:
