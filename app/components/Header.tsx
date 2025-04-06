@@ -28,10 +28,20 @@ interface ProfileMetadata {
   picture?: string
 }
 
-export default function Header() {
+interface HeaderProps {
+  npub?: string | null;
+  picture?: string;
+  displayName?: string;
+  onCreateProfile?: () => void;
+}
+
+export default function Header(props: HeaderProps = {}) {
   const router = useRouter()
-  const [npub, setNpub] = useState<string | null>(null)
-  const [profile, setProfile] = useState<ProfileMetadata>({})
+  const [npub, setNpub] = useState<string | null>(props.npub || null)
+  const [profile, setProfile] = useState<ProfileMetadata>({
+    picture: props.picture,
+    displayName: props.displayName
+  })
   const [, setPool] = useState<SimplePool | null>(null)
 
   useEffect(() => {

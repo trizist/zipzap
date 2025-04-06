@@ -7,14 +7,7 @@ import * as nip19 from 'nostr-tools/nip19'
 import Header from '../components/Header'
 import { useState } from 'react'
 
-declare global {
-  interface Window {
-    nostr?: {
-      getPublicKey(): Promise<string>
-      signEvent(event: unknown): Promise<string>
-    }
-  }
-}
+// Window.nostr interface is defined in app/types/nostr.d.ts
 
 export default function LoginPage() {
   const router = useRouter()

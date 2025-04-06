@@ -16,6 +16,7 @@ import { LightningIcon } from '@bitcoin-design/bitcoin-icons-react/filled'
 import ZipZapModal from './components/ZipZapModal'
 
 // Define a type for any Nostr event
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 type NostrEventBase = {
   kind: number
   created_at: number
@@ -26,14 +27,7 @@ type NostrEventBase = {
   sig?: string
 }
 
-declare global {
-  interface Window {
-    nostr?: {
-      getPublicKey(): Promise<string>
-      signEvent(event: NostrEventBase): Promise<string>
-    }
-  }
-}
+// Window.nostr interface is defined in app/types/nostr.d.ts
 
 if (!process.env.NEXT_PUBLIC_NOSTR_RELAY_URL) {
   throw new Error('NEXT_PUBLIC_NOSTR_RELAY_URL environment variable is not set')
@@ -112,7 +106,7 @@ export default function Home() {
   }, [])
   
   // Also refresh posts when a ZipZap is created
-  const refreshPosts = React.useCallback((poolInstance) => {
+  const refreshPosts = React.useCallback((poolInstance: SimplePool) => {
     if (poolInstance) {
       fetchPosts(poolInstance);
     }
@@ -156,6 +150,15 @@ export default function Home() {
     count: number;
     receipts: ZipZapReceipt[];
   }> => {
+    // Skip processing if wallet is not enabled
+    if (!WALLET_ENABLED) {
+      console.log('Skipping ZipZap receipts fetch - wallet functionality is disabled');
+      return {
+        count: 0,
+        receipts: []
+      };
+    }
+    
     try {
       // Query for kind 9913 events that have an 'e' tag matching the post ID
       const events = await poolInstance.querySync([RELAY_URL], {
@@ -258,11 +261,11 @@ export default function Home() {
         sortedEvents.map(async (post) => {
           const authorProfile = await fetchAuthorProfile(poolInstance, post.pubkey)
           
-          // Only fetch ZipZap receipts for posts from authors with lno tag
+          // Only fetch ZipZap receipts for posts from authors with lno tag (and when wallet is enabled)
           let zipZapCount = 0;
           let zipZapReceipts: ZipZapReceipt[] = [];
           
-          if (authorProfile?.lno) {
+          if (WALLET_ENABLED && authorProfile?.lno) {
             const result = await fetchZipZapReceipts(poolInstance, post.id);
             zipZapCount = result.count;
             zipZapReceipts = result.receipts;
@@ -349,7 +352,6 @@ export default function Home() {
 
           try {
             // Get the signature from Alby
-            // @ts-expect-error - Type not correctly specified in Nostr extension
             const sig = await window.nostr.signEvent(eventToSign)
             console.log('Raw signature from Alby:', sig)
             console.log('Signature type:', typeof sig)
@@ -453,8 +455,12 @@ export default function Home() {
     }
   }
 
+  // Check if wallet is enabled via environment variable
+  const WALLET_ENABLED = process.env.NEXT_PUBLIC_USE_WALLET === 'true'
+
   const handleZap = async (post: NostrEvent) => {
-    if (!post.author?.lno || !pool || isZapping) return
+    // Early return if wallet is not enabled
+    if (!WALLET_ENABLED || !post.author?.lno || !pool || isZapping) return
     
     setIsZapping(post.id)
     try {
@@ -498,7 +504,6 @@ export default function Home() {
         }
 
         // Get the signature from Alby
-        // @ts-expect-error - Type not correctly specified in Nostr extension
         const sig = await window.nostr.signEvent({
           ...baseEvent,
           id
@@ -687,8 +692,9 @@ export default function Home() {
                             variant="ghost"
                             size="icon"
                             onClick={() => handleZap(post)}
-                            disabled={isZapping === post.id}
-                            className="shrink-0 text-yellow-500 hover:text-yellow-600 hover:bg-yellow-100 dark:hover:bg-yellow-900/20"
+                            disabled={isZapping === post.id || !WALLET_ENABLED}
+                            title={!WALLET_ENABLED ? "Wallet features are disabled" : "ZipZap this post"}
+                            className={`shrink-0 ${WALLET_ENABLED ? 'text-yellow-500 hover:text-yellow-600 hover:bg-yellow-100 dark:hover:bg-yellow-900/20' : 'text-gray-400 cursor-not-allowed'}`}
                           >
                             <LightningIcon className="w-5 h-5" />
                             <span className="sr-only">ZipZap this post</span>

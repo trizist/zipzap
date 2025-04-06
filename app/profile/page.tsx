@@ -28,6 +28,7 @@ interface ProfileMetadata {
 }
 
 // Define a type for any Nostr event
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 type NostrEventBase = {
   kind: number
   created_at: number
@@ -38,14 +39,7 @@ type NostrEventBase = {
   sig?: string
 }
 
-declare global {
-  interface Window {
-    nostr?: {
-      getPublicKey(): Promise<string>
-      signEvent(event: NostrEventBase): Promise<string>
-    }
-  }
-}
+// Window.nostr interface is defined in app/types/nostr.d.ts
 
 export default function ProfilePage() {
   const router = useRouter()
@@ -140,7 +134,6 @@ export default function ProfilePage() {
 
           try {
             // Get the signature from Alby
-            // @ts-expect-error - Type not correctly specified in Nostr extension
             const sig = await window.nostr.signEvent(eventToSign)
             console.log('Raw signature from Alby:', sig)
             console.log('Signature type:', typeof sig)

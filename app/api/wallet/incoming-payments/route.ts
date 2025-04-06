@@ -96,8 +96,15 @@ export async function GET() {
       console.error('Fetch operation error:', fetchError);
       
       // Check if it's a connection error (most likely phoenixd is not running)
-      if (fetchError.cause?.code === 'ECONNREFUSED' || 
-          fetchError.cause?.code === 'UND_ERR_SOCKET') {
+      // Type narrowing for fetchError to check for cause property
+      if (fetchError && 
+          typeof fetchError === 'object' && 
+          'cause' in fetchError && 
+          fetchError.cause && 
+          typeof fetchError.cause === 'object' && 
+          'code' in fetchError.cause && 
+          (fetchError.cause.code === 'ECONNREFUSED' || 
+           fetchError.cause.code === 'UND_ERR_SOCKET')) {
         // If connection refused and we have the mock option available, return mock data
         if (process.env.NODE_ENV === 'development') {
           console.log('Phoenix daemon not available, using mock data for development');
@@ -111,7 +118,11 @@ export async function GET() {
       }
       
       // Check if it's a timeout
-      if (fetchError.name === 'TimeoutError' || fetchError.name === 'AbortError') {
+      if (fetchError && 
+          typeof fetchError === 'object' && 
+          'name' in fetchError && 
+          typeof fetchError.name === 'string' &&
+          (fetchError.name === 'TimeoutError' || fetchError.name === 'AbortError')) {
         return NextResponse.json(
           { error: 'Connection to Phoenix daemon timed out. The service might be overloaded or not running.' },
           { status: 504 }

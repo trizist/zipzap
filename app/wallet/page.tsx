@@ -19,9 +19,16 @@ interface NostrEvent {
   sig: string
 }
 
+// Define possible types for amountMsat property
+type AmountValue = {
+  value: string | number;
+} | {
+  amount_msat: string | number;
+}
+
 interface IncomingPayment {
   paymentHash: string
-  amountMsat: number
+  amountMsat: number | AmountValue
   createdAt: number
   receivedAt?: number
   status: 'PENDING' | 'RECEIVED' | 'EXPIRED'
@@ -38,15 +45,7 @@ const RELAY_URL = process.env.NEXT_PUBLIC_NOSTR_RELAY_URL || 'wss://relay.exampl
 // Check if wallet is enabled via environment variable
 const WALLET_ENABLED = process.env.NEXT_PUBLIC_USE_WALLET === 'true';
 
-// Add window.nostr type for NIP-07 browser extensions
-declare global {
-  interface Window {
-    nostr?: {
-      getPublicKey(): Promise<string>
-      signEvent(event: unknown): Promise<string | { sig: string }>
-    }
-  }
-}
+// Window.nostr interface is defined in app/types/nostr.d.ts
 
 export default function WalletPage() {
   const [incomingPayments, setIncomingPayments] = useState<IncomingPayment[]>([])
@@ -75,7 +74,9 @@ export default function WalletPage() {
             ? parseInt(amountMsat.value, 10) 
             : amountMsat.value;
             
-          const sats = Math.floor(valueAsNumber / 1000);
+          // Add type checking for valueAsNumber
+          const numericValue = typeof valueAsNumber === 'number' ? valueAsNumber : 0;
+          const sats = Math.floor(numericValue / 1000);
           return isNaN(sats) ? '0' : sats.toLocaleString();
         }
         
@@ -85,7 +86,9 @@ export default function WalletPage() {
             ? parseInt(amountMsat.amount_msat, 10) 
             : amountMsat.amount_msat;
             
-          const sats = Math.floor(valueAsNumber / 1000);
+          // Add type checking for valueAsNumber
+          const numericValue = typeof valueAsNumber === 'number' ? valueAsNumber : 0;
+          const sats = Math.floor(numericValue / 1000);
           return isNaN(sats) ? '0' : sats.toLocaleString();
         }
         
@@ -491,8 +494,13 @@ export default function WalletPage() {
     let amountSats = "0";
     if (typeof payment.amountMsat === 'number') {
       amountSats = String(Math.floor(payment.amountMsat / 1000));
-    } else if (typeof payment.amountMsat === 'object' && payment.amountMsat?.value) {
-      amountSats = String(Math.floor(Number(payment.amountMsat.value) / 1000));
+    } else if (typeof payment.amountMsat === 'object' && payment.amountMsat !== null) {
+      // Check if it has a value property (type checking)
+      if ('value' in payment.amountMsat && payment.amountMsat.value) {
+        const valueProp = payment.amountMsat.value;
+        const numValue = typeof valueProp === 'string' ? parseInt(valueProp, 10) : Number(valueProp);
+        amountSats = String(Math.floor(numValue / 1000));
+      }
     }
     
     console.log(`Creating ZipZap receipt with timestamp ${safeTimestamp} and amount ${amountSats} sats`);
@@ -529,17 +537,16 @@ export default function WalletPage() {
           throw new Error('Nostr extension not found');
         }
         
-        // @ts-expect-error - Type not correctly specified in Nostr extension
         const sig = await window.nostr.signEvent(eventToSign);
         
         // Handle different signature formats
-        let finalSig = sig;
-        if (typeof sig === 'object' && sig !== null) {
-          if ('sig' in sig) {
-            finalSig = sig.sig;
-          } else {
-            throw new Error('Unexpected signature format');
-          }
+        let finalSig: string = '';
+        if (typeof sig === 'string') {
+          finalSig = sig;
+        } else if (typeof sig === 'object' && sig !== null && 'sig' in sig && typeof sig.sig === 'string') {
+          finalSig = sig.sig;
+        } else {
+          throw new Error('Unexpected signature format');
         }
         
         signedEvent = {

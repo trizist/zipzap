@@ -8,6 +8,9 @@ import {
 } from "@/app/components/ui/dialog"
 import { Button } from "@/app/components/ui/button"
 
+// Check if wallet is enabled via environment variable
+const WALLET_ENABLED = process.env.NEXT_PUBLIC_USE_WALLET === 'true'
+
 interface ZipZapModalProps {
   isOpen: boolean
   onClose: () => void
@@ -35,6 +38,11 @@ export default function ZipZapModal({ isOpen, onClose, noteId }: ZipZapModalProp
           <DialogTitle className="text-white">ZipZap Request Created!</DialogTitle>
           <DialogDescription className="text-gray-300">
             Your ZipZap request has been published to the relay. The note ID below can be shared with others to reference this ZipZap request.
+            {!WALLET_ENABLED && (
+              <p className="mt-2 text-yellow-500">
+                Note: Wallet features are currently disabled in this deployment.
+              </p>
+            )}
           </DialogDescription>
         </DialogHeader>
         
@@ -54,6 +62,7 @@ export default function ZipZapModal({ isOpen, onClose, noteId }: ZipZapModalProp
           
           <p className="text-xs text-center text-gray-400 mt-3">
             This note ID can be used in Nostr clients to reference your ZipZap request.
+            {!WALLET_ENABLED && " However, wallet functionality is currently disabled."}
           </p>
         </div>
       </DialogContent>
