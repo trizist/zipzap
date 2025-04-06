@@ -150,14 +150,8 @@ export default function Home() {
     count: number;
     receipts: ZipZapReceipt[];
   }> => {
-    // Skip processing if wallet is not enabled
-    if (!WALLET_ENABLED) {
-      console.log('Skipping ZipZap receipts fetch - wallet functionality is disabled');
-      return {
-        count: 0,
-        receipts: []
-      };
-    }
+    // We continue fetching receipts even when wallet is disabled
+    // This ensures we show the gold shimmer and zap capsules even when new zipzaps are disabled
     
     try {
       // Query for kind 9913 events that have an 'e' tag matching the post ID
@@ -261,11 +255,12 @@ export default function Home() {
         sortedEvents.map(async (post) => {
           const authorProfile = await fetchAuthorProfile(poolInstance, post.pubkey)
           
-          // Only fetch ZipZap receipts for posts from authors with lno tag (and when wallet is enabled)
+          // Always fetch ZipZap receipts for posts from authors with lno tag, regardless of wallet status
+          // This ensures we still show the gold shimmer and zap capsules even when wallet is disabled
           let zipZapCount = 0;
           let zipZapReceipts: ZipZapReceipt[] = [];
           
-          if (WALLET_ENABLED && authorProfile?.lno) {
+          if (authorProfile?.lno) {
             const result = await fetchZipZapReceipts(poolInstance, post.id);
             zipZapCount = result.count;
             zipZapReceipts = result.receipts;
