@@ -92,6 +92,7 @@ Draft of a ZipZap Receipt note
       ["P", "{pubkey_of_zipzapsender (creator of the 9912 event)}"],
       ["e", "{id_of_my_post_that_was_zipzapped}"],
       ["lno", "{lno_from_profile_of_post_author}"],
+      ["amount", {amount_of_payment}]
     ],
     "content": "",
     "sig": "{event_signature}"
