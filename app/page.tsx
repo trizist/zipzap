@@ -51,6 +51,7 @@ interface ZipZapReceipt {
   id: string
   amount: string
   pubkey: string
+  author?: ProfileMetadata | null
 }
 
 interface NostrEvent {
@@ -172,17 +173,29 @@ export default function Home() {
         
         // Extract amount from tags
         let amount = "0";
+        let senderPubkey = ""; // The pubkey of the original ZipZap sender (P tag)
+        
         for (const tag of event.tags) {
           if (tag[0] === 'amount' && tag[1]) {
             amount = tag[1];
-            break;
           }
+          // Extract the P tag which contains the pubkey of the original ZipZap sender
+          if (tag[0] === 'P' && tag[1]) {
+            senderPubkey = tag[1];
+          }
+        }
+        
+        // Skip if we couldn't find a sender pubkey
+        if (!senderPubkey) {
+          console.log(`Receipt ${index + 1}: Missing sender pubkey (P tag), skipping`);
+          return;
         }
         
         // Log receipt info
         console.log(`Receipt ${index + 1}:`, {
           id: event.id.substring(0, 8) + '...',
-          pubkey: event.pubkey.substring(0, 8) + '...',
+          receipt_creator: event.pubkey.substring(0, 8) + '...',
+          sender_pubkey: senderPubkey.substring(0, 8) + '...',
           amount,
           kind: event.kind,
           created_at: new Date(event.created_at * 1000).toISOString()
@@ -193,7 +206,8 @@ export default function Home() {
           uniqueReceipts.set(event.id, {
             id: event.id,
             amount,
-            pubkey: event.pubkey
+            pubkey: senderPubkey, // Use the sender's pubkey from the P tag
+            author: null
           });
         }
       });
@@ -201,10 +215,21 @@ export default function Home() {
       // Convert map values to array
       const receipts = Array.from(uniqueReceipts.values());
       
-      console.log(`Found ${receipts.length} unique valid ZipZap receipts for post ${postId}`);
+      // Fetch author profiles for each receipt
+      const receiptsWithProfiles = await Promise.all(
+        receipts.map(async (receipt) => {
+          const authorProfile = await fetchAuthorProfile(poolInstance, receipt.pubkey);
+          return {
+            ...receipt,
+            author: authorProfile
+          };
+        })
+      );
+      
+      console.log(`Found ${receiptsWithProfiles.length} unique valid ZipZap receipts for post ${postId}`);
       return {
-        count: receipts.length,
-        receipts
+        count: receiptsWithProfiles.length,
+        receipts: receiptsWithProfiles
       };
     } catch (error) {
       console.error(`Failed to fetch ZipZap receipts for post ${postId}:`, error);
@@ -636,8 +661,17 @@ export default function Home() {
                             {post.zipZapReceipts.map((receipt) => (
                               <div 
                                 key={receipt.id} 
-                                className="px-2 py-1 text-xs font-medium rounded-full bg-yellow-500 text-black"
+                                className="flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-yellow-500 text-black cursor-default"
+                                title={getAuthorDisplayName(receipt.author, receipt.pubkey)}
                               >
+                                <Avatar className="w-4 h-4 mr-1">
+                                  {receipt.author?.picture ? (
+                                    <AvatarImage src={receipt.author.picture} />
+                                  ) : null}
+                                  <AvatarFallback className="text-[8px]">
+                                    {getAuthorInitials(receipt.author) || (receipt.pubkey ? receipt.pubkey.slice(0, 2).toUpperCase() : '?')}
+                                  </AvatarFallback>
+                                </Avatar>
                                 {parseInt(receipt.amount).toLocaleString()} sats
                               </div>
                             ))}
