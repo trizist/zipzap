@@ -47,6 +47,12 @@ interface ProfileMetadata {
   lno?: string
 }
 
+interface ZipZapReceipt {
+  id: string
+  amount: string
+  pubkey: string
+}
+
 interface NostrEvent {
   id: string
   pubkey: string
@@ -57,6 +63,7 @@ interface NostrEvent {
   sig: string
   author?: ProfileMetadata | null
   zipZapCount?: number
+  zipZapReceipts?: ZipZapReceipt[]
 }
 
 export default function Home() {
@@ -141,42 +148,70 @@ export default function Home() {
   }
 
   // Fetch ZipZap receipts (kind 9913) for a given post ID
-  const fetchZipZapReceipts = async (poolInstance: SimplePool, postId: string): Promise<number> => {
+  const fetchZipZapReceipts = async (poolInstance: SimplePool, postId: string): Promise<{
+    count: number;
+    receipts: ZipZapReceipt[];
+  }> => {
     try {
       // Query for kind 9913 events that have an 'e' tag matching the post ID
-      const zipZapReceipts = await poolInstance.querySync([RELAY_URL], {
+      const events = await poolInstance.querySync([RELAY_URL], {
         kinds: [9913],
         '#e': [postId],
         limit: 100 // Reasonable limit
       });
       
-      // Count all valid 9913 receipts (unique by event ID)
-      const uniqueEventIds = new Set();
+      // Store unique receipts by event ID
+      const uniqueReceipts = new Map<string, ZipZapReceipt>();
       
-      console.log(`Found ${zipZapReceipts.length} total ZipZap receipts for post ${postId}`);
+      console.log(`Found ${events.length} total ZipZap receipts for post ${postId}`);
       
-      // Log info about each receipt for debugging
-      zipZapReceipts.forEach((receipt, index) => {
-        const isValid = receipt.kind === 9913 && verifyEvent(receipt);
+      // Process each receipt
+      events.forEach((event, index) => {
+        // Skip invalid events
+        if (event.kind !== 9913 || !verifyEvent(event) || !event.id) return;
+        
+        // Extract amount from tags
+        let amount = "0";
+        for (const tag of event.tags) {
+          if (tag[0] === 'amount' && tag[1]) {
+            amount = tag[1];
+            break;
+          }
+        }
+        
+        // Log receipt info
         console.log(`Receipt ${index + 1}:`, {
-          id: receipt.id?.substring(0, 8) + '...',
-          pubkey: receipt.pubkey?.substring(0, 8) + '...',
-          kind: receipt.kind,
-          isValid,
-          created_at: new Date(receipt.created_at * 1000).toISOString()
+          id: event.id.substring(0, 8) + '...',
+          pubkey: event.pubkey.substring(0, 8) + '...',
+          amount,
+          kind: event.kind,
+          created_at: new Date(event.created_at * 1000).toISOString()
         });
         
-        // Add to unique IDs set if valid
-        if (isValid && receipt.id) {
-          uniqueEventIds.add(receipt.id);
+        // Add to unique receipts map if not already present
+        if (!uniqueReceipts.has(event.id)) {
+          uniqueReceipts.set(event.id, {
+            id: event.id,
+            amount,
+            pubkey: event.pubkey
+          });
         }
       });
       
-      console.log(`Found ${uniqueEventIds.size} unique valid ZipZap receipts for post ${postId}`);
-      return uniqueEventIds.size;
+      // Convert map values to array
+      const receipts = Array.from(uniqueReceipts.values());
+      
+      console.log(`Found ${receipts.length} unique valid ZipZap receipts for post ${postId}`);
+      return {
+        count: receipts.length,
+        receipts
+      };
     } catch (error) {
       console.error(`Failed to fetch ZipZap receipts for post ${postId}:`, error);
-      return 0;
+      return {
+        count: 0,
+        receipts: []
+      };
     }
   };
 
@@ -195,13 +230,22 @@ export default function Home() {
         sortedEvents.map(async (post) => {
           const authorProfile = await fetchAuthorProfile(poolInstance, post.pubkey)
           
-          // Only fetch ZipZap counts for posts from authors with lno tag
+          // Only fetch ZipZap receipts for posts from authors with lno tag
           let zipZapCount = 0;
+          let zipZapReceipts: ZipZapReceipt[] = [];
+          
           if (authorProfile?.lno) {
-            zipZapCount = await fetchZipZapReceipts(poolInstance, post.id);
+            const result = await fetchZipZapReceipts(poolInstance, post.id);
+            zipZapCount = result.count;
+            zipZapReceipts = result.receipts;
           }
           
-          return { ...post, author: authorProfile, zipZapCount };
+          return { 
+            ...post, 
+            author: authorProfile, 
+            zipZapCount,
+            zipZapReceipts
+          };
         })
       )
       
@@ -585,15 +629,22 @@ export default function Home() {
                         <p className="text-sm whitespace-pre-wrap break-words">
                           {post.content}
                         </p>
-                      </div>
-                      <div className="flex flex-col items-end gap-1 shrink-0">
-                        {post.zipZapCount > 0 && (
-                          <div className="flex items-center gap-1 text-xs text-yellow-600 dark:text-yellow-400 font-medium">
-                            <LightningIcon className="w-3 h-3" />
-                            <span>{post.zipZapCount} ZipZap{post.zipZapCount !== 1 ? 's' : ''}!</span>
+                        
+                        {/* ZipZap pills display */}
+                        {post.zipZapReceipts && post.zipZapReceipts.length > 0 && (
+                          <div className="flex flex-wrap gap-2 mt-3">
+                            {post.zipZapReceipts.map((receipt) => (
+                              <div 
+                                key={receipt.id} 
+                                className="px-2 py-1 text-xs font-medium rounded-full bg-yellow-500 text-black"
+                              >
+                                {parseInt(receipt.amount).toLocaleString()} sats
+                              </div>
+                            ))}
                           </div>
                         )}
-                        
+                      </div>
+                      <div className="shrink-0">
                         {post.author?.lno && (
                           <Button
                             variant="ghost"
