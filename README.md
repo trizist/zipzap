@@ -1,6 +1,8 @@
 # ZipZap
 
-BOLT 12 Nostr Zaps
+![ZipZap Logo](public/zipzap.png)
+
+Social media tipping using Lightning, BOLT 12, & Nostr
 
 ## Development
 
