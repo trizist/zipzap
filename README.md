@@ -14,6 +14,44 @@ yarn dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+To use the wallet features, you will need to run [phoenixd](https://phoenix.acinq.co/server) on the same server (or local dev env) as the website. You will also need to set `NEXT_PUBLIC_USE_WALLET` to `true` and add the `PHOENIX_API_PASSWORD` in `.env`.
+
+## ZipZap Protocol
+
+sequenceDiagram
+    participant Alice_Nostr as Alice's Nostr Client
+    participant Alice_Lightning as Alice's Lightning Wallet
+    participant Relays as Nostr Relays
+    participant Bob_Nostr as Bob's Nostr Client
+    participant Bob_Lightning as Bob's Lightning Wallet
+    
+    Note over Alice_Nostr: Alice adds 'lno' field to profile (kind 0)
+    Alice_Nostr->>Relays: Publish updated profile with 'lno' field
+    
+    Note over Bob_Nostr: Bob sees Alice's post he wants to ZipZap
+    
+    Bob_Nostr->>Relays: Create & publish kind 9912 ZipZap Request
+    Note over Bob_Nostr: References Alice's post ID<br>Includes Alice's offer
+    
+    Bob_Nostr->>Bob_Nostr: Generate bech32 'note...' of ZipZap Request
+    
+    Bob_Nostr->>Bob_Lightning: Send bech32 note ID
+    
+    Bob_Lightning->>Alice_Lightning: invoice_request with payerNote<br>containing note ID
+    
+    Alice_Lightning->>Alice_Lightning: Process payment
+    
+    Alice_Lightning->>Alice_Nostr: Signal payment with note ID in payerNote
+    
+    Alice_Nostr->>Relays: Query for 9912 ZipZap Request matching note ID
+    Relays->>Alice_Nostr: Return matching ZipZap Request
+    
+    Note over Alice_Nostr: Alice learns Bob's pubkey ZipZapped her post
+    
+    Alice_Nostr->>Relays: Sign & broadcast kind 9913 ZipZap Receipt
+    
+    Note over Relays: Compatible clients will render ZipZap receipt in UI
+
 ## Spec Notes (WIP)
 
 I've been thinking through a lot of different ways to implement this, starting with simple achievable things that have a lot of holes and edge cases through things that are harder to implement but are more robust and sound. Here's some train-of-thought notes on the topic.
