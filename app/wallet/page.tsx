@@ -305,18 +305,18 @@ export default function WalletPage() {
     const normalizedStatus = status?.toUpperCase() || '';
     
     if (normalizedStatus.includes('RECEIVED') || normalizedStatus.includes('SUCCEEDED')) {
-      return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400';
+      return 'bg-green-900/30 text-green-400';
     }
     
     if (normalizedStatus.includes('PENDING') || normalizedStatus.includes('WAITING')) {
-      return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400';
+      return 'bg-yellow-900/30 text-yellow-400';
     }
     
     if (normalizedStatus.includes('EXPIRED') || normalizedStatus.includes('FAILED')) {
-      return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-400';
+      return 'bg-gray-800 text-gray-400';
     }
     
-    return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-400';
+    return 'bg-gray-800 text-gray-400';
   }
   
   // Helper function to format status for display
@@ -712,13 +712,13 @@ export default function WalletPage() {
         <div className="max-w-[800px] mx-auto w-full">
           <div className="py-8">
             {!WALLET_ENABLED ? (
-              <div className="p-8 text-center border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg">
+              <div className="p-8 text-center border-2 border-dashed border-gray-700 rounded-lg">
                 <h2 className="text-2xl font-bold mb-4">Wallet Not Activated</h2>
-                <p className="text-gray-600 dark:text-gray-400 mb-6">
+                <p className="text-gray-400 mb-6">
                   The wallet feature is not enabled in this deployment.
                 </p>
-                <p className="text-sm text-gray-500 dark:text-gray-500">
-                  Set <code className="bg-gray-200 dark:bg-gray-800 px-1 py-0.5 rounded">NEXT_PUBLIC_USE_WALLET=true</code> in your environment variables to enable it.
+                <p className="text-sm text-gray-500">
+                  Set <code className="bg-gray-800 px-1 py-0.5 rounded">NEXT_PUBLIC_USE_WALLET=true</code> in your environment variables to enable it.
                 </p>
               </div>
             ) : (
@@ -773,30 +773,30 @@ export default function WalletPage() {
                   )}
                   
                   {isLoading && !error && incomingPayments.length === 0 ? (
-                    <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                    <div className="text-center py-8 text-gray-400">
                       Loading payments...
                     </div>
                   ) : incomingPayments.length === 0 ? (
-                    <div className="text-center py-8 border rounded-lg border-dashed border-gray-300 dark:border-gray-700">
-                      <p className="text-gray-500 dark:text-gray-400">No incoming payments found</p>
+                    <div className="text-center py-8 border rounded-lg border-dashed border-gray-700">
+                      <p className="text-gray-400">No incoming payments found</p>
                     </div>
                   ) : (
                     <div className="space-y-4">
                       {incomingPayments.map((payment) => (
                         <div 
                           key={payment.paymentHash} 
-                          className="p-4 rounded-lg bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700"
+                          className="p-4 rounded-lg bg-gray-800 border border-gray-700"
                         >
                           <div className="flex justify-between items-start mb-2">
                             <div>
-                              <span className="font-mono text-sm text-gray-600 dark:text-gray-400">
+                              <span className="font-mono text-sm text-gray-400">
                                 {payment.paymentHash.substring(0, 10)}...
                               </span>
                               <span className={`ml-2 px-2 py-0.5 text-xs rounded-full ${getStatusBadge(payment.status)}`}>
                                 {formatStatus(payment.status)}
                               </span>
                               {payment.processedZipZap && (
-                                <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
+                                <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-purple-900/30 text-purple-400">
                                   ZipZap
                                 </span>
                               )}
@@ -807,13 +807,13 @@ export default function WalletPage() {
                           </div>
                           
                           {(payment.description || payment.payerNote) && (
-                            <div className="text-sm mb-2 text-gray-700 dark:text-gray-300">
+                            <div className="text-sm mb-2 text-gray-300">
                               {payment.description ? (
                                 <p>{payment.description}</p>
                               ) : payment.payerNote ? (
                                 <div>
                                   <p className="font-medium mb-1">Payer Note:</p>
-                                  <pre className="text-xs bg-gray-200 dark:bg-gray-900 p-2 rounded overflow-auto max-h-40">
+                                  <pre className="text-xs bg-gray-900 p-2 rounded overflow-auto max-h-40">
                                     {payment.payerNote}
                                   </pre>
                                 </div>
@@ -821,7 +821,7 @@ export default function WalletPage() {
                             </div>
                           )}
                           
-                          <div className="text-xs text-gray-500 dark:text-gray-400 mt-2 space-y-1">
+                          <div className="text-xs text-gray-400 mt-2 space-y-1">
                             <div className="flex justify-between">
                               <span>Created:</span>
                               <span>{formatDate(payment.createdAt)}</span>
@@ -852,9 +852,9 @@ export default function WalletPage() {
                         <div 
                           key={`${status.id}-${index}`}
                           className={`p-3 rounded-lg text-sm ${
-                            status.status === 'error' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' :
-                            status.status === 'success' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
-                            'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
+                            status.status === 'error' ? 'bg-red-900/30 text-red-400' :
+                            status.status === 'success' ? 'bg-green-900/30 text-green-400' :
+                            'bg-blue-900/30 text-blue-400'
                           }`}
                         >
                           <div className="flex items-center gap-2">
@@ -880,7 +880,7 @@ export default function WalletPage() {
                     </div>
                     {processingZipZap && (
                       <div className="mt-4">
-                        <p className="text-sm text-center text-gray-500 dark:text-gray-400">
+                        <p className="text-sm text-center text-gray-400">
                           Processing ZipZap for payment {processingZipZap.substring(0, 8)}...
                         </p>
                       </div>
