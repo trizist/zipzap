@@ -14,6 +14,7 @@ import { finalizeEvent } from 'nostr-tools/pure'
 import type { UnsignedEvent } from 'nostr-tools'
 import { LightningIcon } from '@bitcoin-design/bitcoin-icons-react/filled'
 import ZipZapModal from './components/ZipZapModal'
+import ZipZapCreationModal from './components/ZipZapCreationModal'
 
 // Define a type for any Nostr event
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -72,6 +73,8 @@ export default function Home() {
   const [isPublishing, setIsPublishing] = useState(false)
   const [isZapping, setIsZapping] = useState<string | null>(null)
   const [zipZapNote, setZipZapNote] = useState<string | null>(null)
+  const [selectedPost, setSelectedPost] = useState<NostrEvent | null>(null)
+  const [zipZapLno, setZipZapLno] = useState<string | null>(null)
 
   useEffect(() => {
     // Initialize relay pool
@@ -453,11 +456,20 @@ export default function Home() {
   // Check if wallet is enabled via environment variable
   const WALLET_ENABLED = process.env.NEXT_PUBLIC_USE_WALLET === 'true'
 
-  const handleZap = async (post: NostrEvent) => {
+  // Open the ZipZap creation modal
+  const handleZap = (post: NostrEvent) => {
     // Early return if wallet is not enabled
     if (!WALLET_ENABLED || !post.author?.lno || !pool || isZapping) return
     
-    setIsZapping(post.id)
+    // Set the selected post for zapping
+    setSelectedPost(post);
+  }
+  
+  // Create and sign the ZipZap event with amount and message
+  const createZipZap = async (amount: number, customMessage: string) => {
+    if (!selectedPost || !selectedPost.author?.lno || !pool) return;
+    
+    setIsZapping(selectedPost.id);
     try {
       // Get the public key first
       const storedPubkey = localStorage.getItem('nostr_pubkey')
@@ -480,13 +492,14 @@ export default function Home() {
       const baseEvent = {
         kind: 9912,
         created_at: Math.floor(Date.now() / 1000),
-        content: 'ZipZap!',
+        content: customMessage || 'ZipZap!',
         pubkey,
         tags: [
           ['relays', RELAY_URL],
-          ['lno', post.author.lno],
-          ['p', post.pubkey],
-          ['e', post.id]
+          ['lno', selectedPost.author.lno],
+          ['p', selectedPost.pubkey],
+          ['e', selectedPost.id],
+          ['amount', amount.toString()]  // Add the amount tag
         ]
       }
 
@@ -541,12 +554,18 @@ export default function Home() {
           ]);
           console.log('Successfully published ZipZap event');
           
+          // Store the LNO address for the confirmation modal
+          setZipZapLno(selectedPost.author.lno);
+          
           // Encode the event ID as a note and show it
           const noteEncoded = nip19.noteEncode(completeEvent.id);
           setZipZapNote(noteEncoded);
         } catch (pubError) {
           console.error('Failed to publish ZipZap event:', pubError);
           alert('Event created but publishing to relay failed. You can still use the event ID.');
+          
+          // Store the LNO address for the confirmation modal
+          setZipZapLno(selectedPost.author.lno);
           
           // Still encode the event ID even if publishing failed
           const noteEncoded = nip19.noteEncode(completeEvent.id);
@@ -574,12 +593,18 @@ export default function Home() {
           ]);
           console.log('Successfully published ZipZap event');
           
+          // Store the LNO address for the confirmation modal
+          setZipZapLno(selectedPost.author.lno);
+          
           // Encode the event ID as a note and show it
           const noteEncoded = nip19.noteEncode(signedEvent.id);
           setZipZapNote(noteEncoded);
         } catch (pubError) {
           console.error('Failed to publish ZipZap event:', pubError);
           alert('Event created but publishing to relay failed. You can still use the event ID.');
+          
+          // Store the LNO address for the confirmation modal
+          setZipZapLno(selectedPost.author.lno);
           
           // Still encode the event ID even if publishing failed
           const noteEncoded = nip19.noteEncode(signedEvent.id);
@@ -591,6 +616,7 @@ export default function Home() {
       alert('Failed to create ZipZap. Please try again.')
     } finally {
       setIsZapping(null)
+      setSelectedPost(null)
     }
   }
 
@@ -704,10 +730,24 @@ export default function Home() {
           </div>
         </div>
       </div>
+      {/* Creation Modal */}
+      <ZipZapCreationModal
+        isOpen={!!selectedPost}
+        onClose={() => setSelectedPost(null)}
+        onSubmit={createZipZap}
+        postAuthor={selectedPost ? getAuthorDisplayName(selectedPost.author, selectedPost.pubkey) : ''}
+        lno={selectedPost?.author?.lno}
+      />
+      
+      {/* Confirmation Modal */}
       <ZipZapModal
         isOpen={!!zipZapNote}
-        onClose={() => setZipZapNote(null)}
+        onClose={() => {
+          setZipZapNote(null)
+          setZipZapLno(null)
+        }}
         noteId={zipZapNote || ''}
+        lno={zipZapLno || undefined}
       />
     </div>
   )

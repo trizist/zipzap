@@ -15,16 +15,17 @@ interface ZipZapModalProps {
   isOpen: boolean
   onClose: () => void
   noteId: string
+  lno?: string
 }
 
-export default function ZipZapModal({ isOpen, onClose, noteId }: ZipZapModalProps) {
-  const [copied, setCopied] = useState(false);
+export default function ZipZapModal({ isOpen, onClose, noteId, lno }: ZipZapModalProps) {
+  const [copied, setCopied] = useState<string | null>(null);
   
-  const handleCopy = async () => {
+  const handleCopy = async (text: string, type: string) => {
     try {
-      await navigator.clipboard.writeText(noteId)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+      await navigator.clipboard.writeText(text)
+      setCopied(type)
+      setTimeout(() => setCopied(null), 2000)
     } catch (err) {
       console.error('Failed to copy:', err)
       alert('Failed to copy to clipboard')
@@ -33,7 +34,7 @@ export default function ZipZapModal({ isOpen, onClose, noteId }: ZipZapModalProp
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[500px] bg-gray-950 border-gray-800">
+      <DialogContent className="max-w-[90vw] sm:max-w-[500px] md:max-w-[640px] bg-gray-950 border-gray-800 overflow-hidden p-4 sm:p-6">
         <DialogHeader>
           <DialogTitle className="text-white">ZipZap Request Created!</DialogTitle>
           <DialogDescription className="text-gray-300">
@@ -46,24 +47,58 @@ export default function ZipZapModal({ isOpen, onClose, noteId }: ZipZapModalProp
           </DialogDescription>
         </DialogHeader>
         
-        <div className="mt-4">
-          <div className="p-4 rounded-lg bg-gray-800 overflow-x-auto">
-            <pre className="text-sm whitespace-pre-wrap break-all text-gray-200">
-              {noteId}
-            </pre>
+        <div className="mt-4 space-y-4 w-full max-w-full overflow-x-hidden">
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              ZipZap Note ID
+            </label>
+            <div className="p-4 rounded-lg bg-gray-800 overflow-x-auto">
+              <pre className="text-sm whitespace-pre-wrap break-all text-gray-200">
+                {noteId}
+              </pre>
+            </div>
+            
+            <Button 
+              onClick={() => handleCopy(noteId, "note")}
+              className="w-full mt-2 bg-yellow-500 text-black font-medium hover:bg-yellow-400 transition-all"
+            >
+              {copied === "note" ? 'Copied Note ID!' : 'Copy Note ID'}
+            </Button>
+            
+            <p className="text-xs text-center text-gray-400 mt-2">
+              This note ID can be used in Nostr clients to reference your ZipZap request.
+            </p>
           </div>
           
-          <Button 
-            onClick={handleCopy}
-            className="w-full mt-4 bg-yellow-500 text-black font-medium hover:bg-yellow-400 transition-all"
-          >
-            {copied ? 'Copied!' : 'Copy Note ID'}
-          </Button>
+          {lno && (
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Lightning Offer
+              </label>
+              <div className="p-4 rounded-lg bg-gray-800 overflow-x-auto">
+                <pre className="text-sm whitespace-pre-wrap break-all text-gray-200">
+                  {lno}
+                </pre>
+              </div>
+              
+              <Button 
+                onClick={() => handleCopy(lno, "lno")}
+                className="w-full mt-2 bg-yellow-500 text-black font-medium hover:bg-yellow-400 transition-all"
+              >
+                {copied === "lno" ? 'Copied Lightning Offer!' : 'Copy Lightning Offer'}
+              </Button>
+              
+              <p className="text-xs text-center text-gray-400 mt-2">
+                This Lightning Offer can be used to pay the recipient directly.
+              </p>
+            </div>
+          )}
           
-          <p className="text-xs text-center text-gray-400 mt-3">
-            This note ID can be used in Nostr clients to reference your ZipZap request.
-            {!WALLET_ENABLED && " However, wallet functionality is currently disabled."}
-          </p>
+          {!WALLET_ENABLED && (
+            <p className="text-sm text-center text-yellow-500 mt-2">
+              Note: Wallet functionality is currently disabled in this deployment.
+            </p>
+          )}
         </div>
       </DialogContent>
     </Dialog>
