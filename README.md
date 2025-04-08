@@ -22,6 +22,8 @@ To use the wallet features, you will need to run [phoenixd](https://phoenix.acin
 
 ## ZipZap Protocol
 
+[NIP-XX Draft - Work in Progress](https://github.com/sbddesign/nips/blob/bolt12zaps/XX.md)
+
 ### ZipZap Request
 
 Draft of a ZipZap request note
